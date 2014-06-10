@@ -52,3 +52,9 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+
+auth.json
+
+HiggsBosonCompetition_AMSMetric_rev1.py
+*.csv
+*.zip
