@@ -21,7 +21,8 @@ def processPipeline():
 
 _session = None
 def getKaggleSession():
-
+	global _session
+	
 	if _session == None:
 		username = passwd = ""
 		if os.path.isfile("auth.json"):
@@ -101,11 +102,14 @@ _parserFns = {
 }
 
 def importCsv(pipeline, lastfile):
+	print "importing '%s' into sqlite..." % lastfile
+
 	conn = sqlite3.connect(_SQLITE_DB)
 	cursor = conn.cursor()
 
 	table = pipeline["sqlite"]["table"]
 	columns = pipeline["sqlite"]["columns"]
+	pkey = pipeline["sqlite"]["pkey"]
 
 	with open(lastfile, 'r') as csvfile:
 		reader = csv.reader(csvfile)
@@ -117,10 +121,11 @@ def importCsv(pipeline, lastfile):
 			print columns.keys()
 			raise Exception("The headers that were found in the csv file were different from the ones found in the pipeline.json file")
 
+		columnNames = [ header + (" PRIMARY KEY" if header == pkey else "") for header in headerline]
 		cursor.execute(
 			"CREATE TABLE %s (%s)" % (
 				table,
-				", ".join(headerline)
+				", ".join(columnNames)
 			)
 		)
 
@@ -134,7 +139,9 @@ def importCsv(pipeline, lastfile):
 			
 		cursor.executemany("INSERT INTO %s VALUES (%s)" % (table, questionMarks), csvrows)
 	conn.commit()
-	conn.close()	
+	conn.close()
+
+	os.remove(lastfile)
 
 def listeqset(l, s):
 	if len(l) != len(s):
