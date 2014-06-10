@@ -58,3 +58,7 @@ auth.json
 HiggsBosonCompetition_AMSMetric_rev1.py
 *.csv
 *.zip
+
+*.sqlite
+
+test.py

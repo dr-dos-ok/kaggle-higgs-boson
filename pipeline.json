@@ -4,93 +4,93 @@
 		"sqlite": {
 			"table": "random_submission",
 			"pkey": "EventId",
-			"column_parsers": [
-				"int", //EventId
-				"int", //RankOrder
-				null //Class (character)
-			]
+			"columns": {
+				"EventId": "int",
+				"RankOrder": "int",
+				"Class": "string"
+			}
 		}
 	},
 	{
 		"url": "https://www.kaggle.com/c/higgs-boson/download/training.zip",
 		"sqlite": {
-			"table": "random_submission",
+			"table": "training",
 			"pkey": "EventId",
-			"column_parsers": [
-				"int", //EventId
-				"float", //DER_mass_MMC
-				"float", //DER_mass_transverse_met_lep
-				"float", //DER_mass_vis
-				"float", //DER_pt_h
-				"float", //DER_deltaeta_jet_jet
-				"float", //DER_mass_jet_jet
-				"float", //DER_prodeta_jet_jet
-				"float", //DER_deltar_tau_lep
-				"float", //DER_pt_tot
-				"float", //DER_sum_pt
-				"float", //DER_pt_ratio_lep_tau
-				"float", //DER_met_phi_centrality
-				"float", //DER_lep_eta_centrality
-				"float", //PRI_tau_pt
-				"float", //PRI_tau_eta
-				"float", //PRI_tau_phi
-				"float", //PRI_lep_pt
-				"float", //PRI_lep_eta
-				"float", //PRI_lep_phi
-				"float", //PRI_met
-				"float", //PRI_met_phi
-				"float", //PRI_met_sumet
-				"int", //PRI_jet_num
-				"float", //PRI_jet_leading_pt
-				"float", //PRI_jet_leading_eta
-				"float", //PRI_jet_leading_phi
-				"float", //PRI_jet_subleading_pt
-				"float", //PRI_jet_subleading_eta
-				"float", //PRI_jet_subleading_phi
-				"float" //PRI_jet_all_pt
-			]
+			"columns": {
+				"EventId": "int",
+				"DER_mass_MMC": "float",
+				"DER_mass_transverse_met_lep": "float",
+				"DER_mass_vis": "float",
+				"DER_pt_h": "float",
+				"DER_deltaeta_jet_jet": "float",
+				"DER_mass_jet_jet": "float",
+				"DER_prodeta_jet_jet": "float",
+				"DER_deltar_tau_lep": "float",
+				"DER_pt_tot": "float",
+				"DER_sum_pt": "float",
+				"DER_pt_ratio_lep_tau": "float",
+				"DER_met_phi_centrality": "float",
+				"DER_lep_eta_centrality": "float",
+				"PRI_tau_pt": "float",
+				"PRI_tau_eta": "float",
+				"PRI_tau_phi": "float",
+				"PRI_lep_pt": "float",
+				"PRI_lep_eta": "float",
+				"PRI_lep_phi": "float",
+				"PRI_met": "float",
+				"PRI_met_phi": "float",
+				"PRI_met_sumet": "float",
+				"PRI_jet_num": "int",
+				"PRI_jet_leading_pt": "float",
+				"PRI_jet_leading_eta": "float",
+				"PRI_jet_leading_phi": "float",
+				"PRI_jet_subleading_pt": "float",
+				"PRI_jet_subleading_eta": "float",
+				"PRI_jet_subleading_phi": "float",
+				"PRI_jet_all_pt": "float",
+				"Weight": "float",
+				"Label": "string"
+			}
 		}
 	},
 	{
 		"url": "https://www.kaggle.com/c/higgs-boson/download/test.zip",
 		"sqlite": {
-			"table": "random_submission",
+			"table": "test",
 			"pkey": "EventId",
-			"column_parsers": [
-				"int", //EventId
-				"float", //DER_mass_MMC
-				"float", //DER_mass_transverse_met_lep
-				"float", //DER_mass_vis
-				"float", //DER_pt_h
-				"float", //DER_deltaeta_jet_jet
-				"float", //DER_mass_jet_jet
-				"float", //DER_prodeta_jet_jet
-				"float", //DER_deltar_tau_lep
-				"float", //DER_pt_tot
-				"float", //DER_sum_pt
-				"float", //DER_pt_ratio_lep_tau
-				"float", //DER_met_phi_centrality
-				"float", //DER_lep_eta_centrality
-				"float", //PRI_tau_pt
-				"float", //PRI_tau_eta
-				"float", //PRI_tau_phi
-				"float", //PRI_lep_pt
-				"float", //PRI_lep_eta
-				"float", //PRI_lep_phi
-				"float", //PRI_met
-				"float", //PRI_met_phi
-				"float", //PRI_met_sumet
-				"int", //PRI_jet_num
-				"float", //PRI_jet_leading_pt
-				"float", //PRI_jet_leading_eta
-				"float", //PRI_jet_leading_phi
-				"float", //PRI_jet_subleading_pt
-				"float", //PRI_jet_subleading_eta
-				"float", //PRI_jet_subleading_phi
-				"float", //PRI_jet_all_pt
-				"float", //Weight
-				null //Label (character)
-			]
+			"columns": {
+				"EventId": "int",
+				"DER_mass_MMC": "float",
+				"DER_mass_transverse_met_lep": "float",
+				"DER_mass_vis": "float",
+				"DER_pt_h": "float",
+				"DER_deltaeta_jet_jet": "float",
+				"DER_mass_jet_jet": "float",
+				"DER_prodeta_jet_jet": "float",
+				"DER_deltar_tau_lep": "float",
+				"DER_pt_tot": "float",
+				"DER_sum_pt": "float",
+				"DER_pt_ratio_lep_tau": "float",
+				"DER_met_phi_centrality": "float",
+				"DER_lep_eta_centrality": "float",
+				"PRI_tau_pt": "float",
+				"PRI_tau_eta": "float",
+				"PRI_tau_phi": "float",
+				"PRI_lep_pt": "float",
+				"PRI_lep_eta": "float",
+				"PRI_lep_phi": "float",
+				"PRI_met": "float",
+				"PRI_met_phi": "float",
+				"PRI_met_sumet": "float",
+				"PRI_jet_num": "int",
+				"PRI_jet_leading_pt": "float",
+				"PRI_jet_leading_eta": "float",
+				"PRI_jet_leading_phi": "float",
+				"PRI_jet_subleading_pt": "float",
+				"PRI_jet_subleading_eta": "float",
+				"PRI_jet_subleading_phi": "float",
+				"PRI_jet_all_pt": "float"
+			}
 		}
 	},
 	{
