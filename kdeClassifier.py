@@ -88,7 +88,7 @@ def calcPrediction(rowtuple):
 
 	return np.mean(sprobs / sumprobs)
 
-spredictions = multiprocessing.Pool(8).map(calcPrediction, test.iterrows())
+spredictions = multiprocessing.Pool().map(calcPrediction, test.iterrows())
 print "\rDone.                 "
 
 write("formatting and writing results")
