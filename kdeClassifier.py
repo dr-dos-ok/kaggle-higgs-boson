@@ -103,4 +103,4 @@ submission[["EventId", "RankOrder", "Class"]].to_csv("kdeClassifier.csv", header
 writeDone()
 
 global_elapsed = time.time() - global_start
-print "Took %d:%d" % (global_elapsed/60, global_elapsed)
+print "Took %d:%d" % (global_elapsed/60, global_elapsed%60)
