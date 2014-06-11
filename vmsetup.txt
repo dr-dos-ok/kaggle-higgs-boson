@@ -1,0 +1,10 @@
+sudo apt-get update
+sudo apt-get install python-dev python-pip git
+sudo pip install numpy pandas scikit-learn matplotlib
+
+git clone https://github.com/bkputnam/kaggle-higgs-boson.git
+cd kaggle-higgs-boson
+python pipeline.py
+--enter username
+--enter password
+
