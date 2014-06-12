@@ -103,7 +103,7 @@ def calcPrediction(rowtuple):
 		sys.stdout.flush()
 	probs_s = getColProbs(row, kdes_s)
 	probs_b = getColProbs(row, kdes_b)
-	sqdiffs = np.square(probs_s - probs_b)
+	sqdiffs = np.square((probs_s - probs_b) * 10000.0)
 
 	return np.mean(sqdiffs)
 
@@ -112,13 +112,13 @@ print "\rDone.                 "
 
 write("formatting and writing results")
 test["spredictions"] = spredictions
-test["Class"] = ["s" if spred >= 0.5 else "b" for spred in spredictions]
+test["Class"] = ["s" if spred >= 0.0 else "b" for spred in spredictions]
 
 submission = test[["EventId", "Class", "spredictions"]].sort("spredictions")
 submission["RankOrder"] = range(1, len(spredictions)+1)
 submission = submission.sort("EventId")
-# print submission.head()
-submission[["EventId", "RankOrder", "Class"]].to_csv("kdeClassifier2.csv", header=True, index=False)
+print submission[["EventId", "RankOrder", "Class"]].head()
+# submission[["EventId", "RankOrder", "Class"]].to_csv("kdeClassifier2.csv", header=True, index=False)
 writeDone()
 
 global_elapsed = time.time() - global_start
