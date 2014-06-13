@@ -5,6 +5,9 @@ import math, time, sys
 
 global_start = time.time()
 
+trainLimit = None
+testLimit = None
+
 class BinSet:
 	def __init__(self, dataframe):
 
@@ -34,14 +37,9 @@ class BinSet:
 	def score(self, data):
 		return self._hist[np.digitize(data, self._bins)]
 
-conn = dbConn()
-
 write("loading training data")
-traindata = pd.read_sql("SELECT * FROM training", conn)
-traindata = traindata.applymap(lambda x: np.nan if x == -999.0 else x)
-colNames = list(traindata.columns.values)
-featureCols = [colName for colName in colNames if traindata.dtypes[colName] == np.float64]
-featureCols.remove("Weight")
+traindata = loadTrainingData(trainLimit)
+featureCols = featureCols()
 traindata_b = traindata[traindata["Label"] == "b"]
 traindata_s = traindata[traindata["Label"] == "s"]
 traindata = None # don't need this anymore, might clean up global namespace a bit
@@ -61,9 +59,7 @@ traindata_b = None
 writeDone()
 
 write("loading test data")
-sql = "SELECT EventId, %s FROM test" % (", ".join(featureCols))
-testdata = pd.read_sql(sql, conn)
-testdata = testdata.applymap(lambda x: np.nan if x == -999.0 else x)
+testdata = loadTestData(testLimit)
 writeDone()
 
 write("generating scores")

@@ -129,7 +129,7 @@ def importCsv(pipeline, lastfile):
 			)
 		)
 
-		questionMarks = ", ".join(["?" for i in range(0, len(headerline))])
+		questionMarks = ", ".join(["?"] * len(headerline))
 		parsers = [_parserFns[columns[columnName]] for columnName in headerline] # make sure order matches
 		csvrows = []
 		for csvline in reader:
