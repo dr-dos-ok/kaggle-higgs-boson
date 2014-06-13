@@ -71,44 +71,49 @@ training_s = None # may save us some startup time on multiprocessing startup lat
 training_b = None # may save us some startup time on multiprocessing startup later
 writeDone()
 
+numrows = 550000
+
 write("loading test data")
-sql = "SELECT EventId, %s FROM test" % ", ".join(floatCols)
-test = pd.read_sql(sql, conn)
-numrows = test.shape[0]
+test = pd.read_csv("test.csv")
 writeDone()
 
 print "making predictions (this will take a while)..."
 spredictions = []
-
-def getColProbs(row, kde_dict):
-	scores = []
-	for col in floatCols:
-		val = row[col]
-		if val == -999.0:
-			continue
-		kde = kde_dict[col]
-		scores.append(np.exp(kde.score(val)))
-	return np.array(scores)
+pool = multiprocessing.Pool()
 
 
-rowcounter = multiprocessing.Value("i", 0)
-def calcPrediction(rowtuple):
-	global rowcounter
-	rowcounter.value += 1
+def calcScores(col):
+	kde
 
-	(rowindex, row) = rowtuple
+# def getColProbs(row, kde_dict):
+# 	scores = []
+# 	for col in floatCols:
+# 		val = row[col]
+# 		if val == -999.0:
+# 			continue
+# 		kde = kde_dict[col]
+# 		scores.append(np.exp(kde.score(val)))
+# 	return np.array(scores)
 
-	if rowcounter.value % 1000 == 0:
-		sys.stdout.write("\r%d of %d (%f%%)      " % (rowcounter.value, numrows, rowcounter.value*100.0/numrows))
-		sys.stdout.flush()
-	probs_s = getColProbs(row, kdes_s)
-	probs_b = getColProbs(row, kdes_b)
-	sqdiffs = np.square((probs_s - probs_b) * 10000.0)
+# rowcounter = multiprocessing.Value("i", 0)
+# def calcPrediction(rowtuple):
+# 	global rowcounter
+# 	rowcounter.value += 1
 
-	return np.mean(sqdiffs)
+# 	(rowindex, row) = rowtuple
 
-spredictions = multiprocessing.Pool().map(calcPrediction, test.iterrows())
-print "\rDone.                 "
+# 	if rowcounter.value % 1000 == 0:
+# 		sys.stdout.write("\r%d of %d (%f%%)      " % (rowcounter.value, numrows, rowcounter.value*100.0/numrows))
+# 		sys.stdout.flush()
+# 	probs_s = getColProbs(row, kdes_s)
+# 	probs_b = getColProbs(row, kdes_b)
+
+# 	return np.mean((probs_s - probs_b)/(probs_s + probs_b))
+
+# threadpool = multiprocessing.Pool()
+# test = pd.read_csv("test.csv")
+# spredictions = multiprocessing.Pool().map(calcPrediction, test.iterrows())
+# print "\rDone.                 "
 
 write("formatting and writing results")
 test["spredictions"] = spredictions
