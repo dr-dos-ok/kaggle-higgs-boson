@@ -24,7 +24,8 @@ class BinSet:
 		bins = sortedData[bindices]
 
 		#generate histogram density
-		(self._hist, self._bins) = np.histogram(npData, bins, weights=npWeights, density=True)
+		# (self._hist, self._bins) = np.histogram(npData, bins, weights=npWeights, density=True)
+		(self._hist, self._bins) = np.histogram(npData, bins, density=True)
 
 		#add NaN to either end of our hist array for two reasons:
 		# 1 - numpy.digitize will now return the correct index of the bin. Don't have to worry about
