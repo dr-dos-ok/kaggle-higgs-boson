@@ -1,13 +1,33 @@
 import pandas as pd
 import numpy as np
-import sqlite3, sys
+import sqlite3, sys, time, math
+
+_write_time = None
 
 def write(s):
+	global _write_time
+	_write_time = time.time()
 	sys.stdout.write(s+"...")
 	sys.stdout.flush()
 
 def writeDone():
-	print " (Done)"
+	global _write_time
+	elapsed = time.time() - _write_time
+	print " (Done - %s)" % fmtTime(elapsed)
+
+def fmtTime(secs):
+
+	hrs = math.floor(secs / (60.**2))
+	secs = secs - (hrs * (60**2))
+	mins = math.floor(secs / 60.)
+	secs = secs - (mins * 60)
+
+	if hrs > 0:
+		return "%d:%02d:%02d hrs" % (hrs, mins, int(secs))
+	elif mins > 0:
+		return "%d:%02d mins" % (mins, int(secs))
+	else:
+		return "%.4f secs" % secs
 
 _conn = None
 def dbConn():
@@ -50,3 +70,9 @@ def loadTestData(numRows=None):
 		_testData = _testData.applymap(lambda x: np.nan if x == -999.0 else x)
 		_testDataLoaded = True
 	return _testData
+
+if __name__ == "__main__":
+	print fmtTime(1.23)
+	print fmtTime(66.1)
+	print fmtTime(120)
+	print fmtTime(4*60*60 + 5*60 + 10)

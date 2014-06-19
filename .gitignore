@@ -66,3 +66,5 @@ test.py
 higgsml_simplest_v2.py
 
 higgsml_bayesian.py
+
+*.profile
