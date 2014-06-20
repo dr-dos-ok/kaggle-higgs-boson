@@ -162,7 +162,7 @@ def init_dde(colpair):
 	(from_disk, dde_pair) = DdePair.get_pair(colpair, TRAIN_LIMIT, traindata)
 	if not from_disk:
 		dde_pair.save()
-	dde_pair.save_img()
+	# dde_pair.save_img()
 	print "finished %s" % str(colpair)
 
 col_pairs = list(pairs(feature_cols))
