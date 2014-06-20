@@ -12,7 +12,7 @@ global_start = time.time()
 
 TRAIN_LIMIT = 1000
 TEST_LIMIT = None
-USE_MULTIPROCESSING = True
+USE_MULTIPROCESSING = False
 
 mpl.use("Agg")
 
