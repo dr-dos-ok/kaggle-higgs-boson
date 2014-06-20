@@ -68,3 +68,5 @@ higgsml_simplest_v2.py
 higgsml_bayesian.py
 
 *.profile
+dde_imgs/
+dde_pairs/
