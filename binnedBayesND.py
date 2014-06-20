@@ -10,9 +10,11 @@ from matplotlib.collections import PolyCollection
 
 global_start = time.time()
 
-TRAIN_LIMIT = 50000
+TRAIN_LIMIT = 1000
 TEST_LIMIT = None
 USE_MULTIPROCESSING = True
+
+mpl.use("Agg")
 
 seed = 42
 random.seed(seed)
