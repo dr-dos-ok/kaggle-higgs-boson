@@ -10,10 +10,13 @@ def write(s):
 	sys.stdout.write(s+"...")
 	sys.stdout.flush()
 
-def writeDone():
-	global _write_time
-	elapsed = time.time() - _write_time
-	print " (Done - %s)" % fmtTime(elapsed)
+def writeDone(elapsed=None):
+	fmt = "Done - %s"
+	if elapsed == None:
+		global _write_time
+		elapsed = time.time() - _write_time
+		fmt = " (%s)" % fmt
+	print fmt % fmtTime(elapsed)
 
 def fmtTime(secs):
 
@@ -50,12 +53,16 @@ def loadTrainingData(numRows=None):
 	return _trainingData
 
 _featureCols = None
-def featureCols():
+def featureCols(only_float64=True):
 	global _featureCols
 	if _featureCols == None:
 		traindata = loadTrainingData()
-		_featureCols = [colName for colName in list(traindata.columns.values) if _trainingData.dtypes[colName] == np.float64]
-		_featureCols.remove("Weight")
+		_featureCols = [
+			colName
+			for colName in traindata.columns.values if colName.startswith("DER") or colName.startswith("PRI")
+		]
+		if only_float64:
+			_featureCols = filter(lambda colName: _trainingData.dtypes[colName] == np.float64, _featureCols)
 	return _featureCols
 
 _testData = None

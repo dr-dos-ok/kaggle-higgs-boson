@@ -1,7 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import cPickle as pickle
+
+import matplotlib as mpl
+# mpl.use("Agg") # must come before pyplot
+import matplotlib.pyplot as plt
 
 import math, time, random, cProfile, DelaunayDensityEstimator, multiprocessing, os
 
@@ -10,11 +12,23 @@ from matplotlib.collections import PolyCollection
 
 global_start = time.time()
 
-TRAIN_LIMIT = 50000
+TRAIN_LIMIT = 100
 TEST_LIMIT = None
 USE_MULTIPROCESSING = True
 
-mpl.use("Agg")
+USE_MANUAL_TESTS = False
+MANUAL_TESTS = [
+	# ["DER_mass_transverse_met_lep", "DER_deltaeta_jet_jet"]
+	# ["DER_deltaeta_jet_jet", "PRI_lep_phi"],
+	# ["DER_sum_pt", "DER_deltar_tau_lep"],
+	# ["DER_mass_transverse_met_lep", "DER_mass_vis"],
+	# ["DER_mass_transverse_met_lep", "DER_pt_ratio_lep_tau"],
+	# ["DER_mass_transverse_met_lep", "DER_sum_pt"],
+	# ["DER_mass_transverse_met_lep", "PRI_lep_eta"],
+	# ["DER_mass_transverse_met_lep", "PRI_met_sumet"],
+	# ["DER_prodeta_jet_jet", "PRI_lep_eta"],
+	# ["PRI_lep_phi", "PRI_met_phi"]
+]
 
 seed = 42
 random.seed(seed)
@@ -65,11 +79,11 @@ class DdePair:
 
 	@staticmethod
 	def default_save_name(cols, size):
-		return DdePair.SAVE_DIR + "|".join(cols) + "|" + str(size) + ".ddepair"
+		return DdePair.SAVE_DIR + str(size) + "/" + ("|".join(cols)) + ".ddepair"
 
 	@staticmethod
 	def default_img_name(cols, size):
-		return DdePair.IMG_SAVE_DIR + "|".join(cols) + "|" + str(size) + ".png"
+		return DdePair.IMG_SAVE_DIR + str(size) + "/" + ("|".join(cols)) + ".png"
 
 	def score(self, data):
 		score_s = self.dde_s.score(data)
@@ -79,6 +93,8 @@ class DdePair:
 	def save(self):
 		if not os.path.isdir(DdePair.SAVE_DIR):
 			os.mkdir(DdePair.SAVE_DIR)
+		if not os.path.isdir(DdePair.SAVE_DIR + "/" + str(self.size)):
+			os.mkdir(DdePair.SAVE_DIR + "/" + str(self.size))
 		filename = DdePair.default_save_name(self.cols, self.size)
 		with open(filename, "w") as outfile:
 			pickle.dump(self, outfile)
@@ -134,6 +150,8 @@ class DdePair:
 	def save_img(self):
 		if not os.path.isdir(DdePair.IMG_SAVE_DIR):
 			os.mkdir(DdePair.IMG_SAVE_DIR)
+		if not os.path.isdir(DdePair.IMG_SAVE_DIR + "/" + str(self.size)):
+			os.mkdir(DdePair.IMG_SAVE_DIR + "/" + str(self.size))
 		self._plot_heatmaps()
 		filename = DdePair.default_img_name(self.cols, self.size)
 		plt.savefig(filename)
@@ -149,6 +167,7 @@ class DdePair:
 print "TRAIN_LIMIT:", TRAIN_LIMIT
 print "TEST_LIMIT:", TEST_LIMIT
 print "USE_MULTIPROCESSING:", USE_MULTIPROCESSING
+print "USE_MANUAL_TESTS:", USE_MANUAL_TESTS
 print
 
 write("loading training data")
@@ -156,22 +175,46 @@ traindata = loadTrainingData(TRAIN_LIMIT * 5) # we'll filter down to TRAIN_LIMIT
 feature_cols = featureCols()
 writeDone()
 
-print "initializing all Delaunay density estimators..."
+# print "initializing all Delaunay density estimators..."
 def init_dde(colpair):
 	global TRAIN_LIMIT, traindata
 	(from_disk, dde_pair) = DdePair.get_pair(colpair, TRAIN_LIMIT, traindata)
 	if not from_disk:
 		dde_pair.save()
 	# dde_pair.save_img()
-	print "finished %s" % str(colpair)
+	if from_disk:
+		print "loaded from disk: %s" % str(colpair)
+	else:
+		print "calced from scratch: %s" % str(colpair)
+	return dde_pair
 
-col_pairs = list(pairs(feature_cols))
-if USE_MULTIPROCESSING:
-	pool = multiprocessing.Pool()
-	dde_pairs = pool.map(init_dde, col_pairs)
-else:
-	dde_pairs = map(init_dde, col_pairs)
-# dde_lookup = dict(zip(col_pairs, dde_pairs))
+# col_pairs = MANUAL_TESTS if USE_MANUAL_TESTS else list(pairs(feature_cols))
+# if USE_MULTIPROCESSING:
+# 	pool = multiprocessing.Pool()
+# 	dde_pairs = pool.map(init_dde, col_pairs)
+# else:
+# 	dde_pairs = map(init_dde, col_pairs)
+# # dde_lookup = dict(zip(col_pairs, dde_pairs))
+
+write("Loading DDE")
+dde = init_dde(["PRI_lep_phi", "PRI_met_phi"])
+writeDone()
+
+write("Loading test data")
+testdata = loadTestData(TEST_LIMIT)
+writeDone()
+
+write("Scoring test data")
+testdata["Scores"] = dde.score(testdata[["PRI_lep_phi", "PRI_met_phi"]])
+testdata["Class"] = ["s" if score > 0.0 else "b" for score in testdata["Scores"]]
+writeDone()
+
+write("Formatting results")
+testdata = testdata.sort("Scores")
+testdata["RankOrder"] = np.array(range(1, testdata.shape[0]+1))
+testdata = testdata.sort("EventId")
+testdata[["EventId", "RankOrder", "Class"]].to_csv("binnedBayesND.csv", header=True, index=False)
+writeDone()
 
 global_elapsed = time.time() - global_start
 print "Took %s" % fmtTime(global_elapsed)

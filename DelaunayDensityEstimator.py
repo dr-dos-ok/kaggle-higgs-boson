@@ -152,8 +152,9 @@ class DelaunayDensityEstimator:
 	def score(self, testdata):
 		normalized_testdata = (testdata - self.means) / self.stddevs
 		simplex_indices = self.dt.find_simplex(normalized_testdata)
-		simplex_indices[simplex_indices == -1] = np.na
-		return self.simplex_densities[simplex_indices]
+		result = self.simplex_densities[simplex_indices]
+		result[simplex_indices == -1] = np.nan
+		return result
 
 	def default_save_name(self, num_rows_override=None):
 		num_rows = num_rows_override if num_rows_override != None else self.num_rows
