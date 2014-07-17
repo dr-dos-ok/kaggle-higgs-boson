@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 from bkputils import *
-import math, time
+import math, time, sys
 
 global_start = time.time()
 
-TRAIN_LIMIT = 10000
-TEST_LIMIT = 100
+TRAIN_LIMIT = None
+TEST_LIMIT = None
 
 class BinSet_Real:
 	def __init__(self, dataframe, col):
@@ -22,14 +22,14 @@ class BinSet_Real:
 		#points of the distribution so that we don't have dozens of bins
 		#with just a few data points in them
 		sortedData = np.sort(npData)
-		self.numbins = numBins = int(math.sqrt(npData.size))
-		bindices = np.linspace(0, npData.size-1, numBins+1).astype(np.int32) # bin + indices = bindices! lol I'm hilarious...
+		self.numbins = numbins = int(math.sqrt(npData.size))
+		bindices = np.linspace(0, npData.size-1, numbins+1).astype(np.int32) # bin + indices = bindices! lol I'm hilarious...
 		bins = sortedData[bindices]
 
 		#generate histogram density
 		(self._hist, self._bins) = np.histogram(npData, bins, density=True)
 		self._maxval = self._bins[-1]
-		self._maxbindex = numBins # don't subtract one - numpy thinks bins are 1-based not 0-based
+		self._maxbindex = numbins # don't subtract one - numpy thinks bins are 1-based not 0-based
 
 		#account for probability of NA values
 		# probna + sum(bin_density*bin_width) needs to be equal to 1.0
@@ -47,17 +47,6 @@ class BinSet_Real:
 
 	def group(self, dataframe):
 		bindices = self._getbindices(dataframe[self.col])
-		# return dataframe.groupby(lambda index: bindices[index])
-
-		# def mylambda(index):
-		# 	print index
-		# 	try:
-		# 		return bindices[index]
-		# 	except:
-		# 		print "index:", index
-		# 		print "bindices[%d]:" % len(bindices), bindices
-		# 		print "numrows:", dataframe.shape
-		# 		exit()
 		return dataframe.groupby(bindices)
 
 	def groupkeys(self, datapoints):
@@ -78,9 +67,14 @@ class BinSet_Real:
 		#method should be aware of this and account for it manually
 		result[np.isnan(datapoints)] = -1
 
-		#account for a minor inconsistency in np.digitize: final bin should
-		#include its upper limit instead of being treated as out-of-bounds
-		result[datapoints == self._maxval] = self._maxbindex
+		# #account for a minor inconsistency in np.digitize: final bin should
+		# #include its upper limit instead of being treated as out-of-bounds
+		# result[datapoints == self._maxval] = self._maxbindex
+
+		#anything with bindex 0 or numbins+1 is outside the range seen in the training
+		#round them to the closest bin
+		result[result == 0] = 1
+		result[result == self.numbins+1] = self.numbins
 
 		return result
 
@@ -126,12 +120,11 @@ class BinSet_Discrete:
 		self.original_data = dataframe
 		self.col = col
 
-		series = dataframe[col]
-		self.original_groups = groups = series.groupby(lambda index: series[index])
+		self.original_groups = groups = dataframe.groupby(col)
 
 		self.bins = bins = {}
 		for key, group in groups:
-			bins[key] = float(group.size) / series.size
+			bins[key] = float(group.shape[0]) / dataframe.shape[0]
 		self.numbins = len(self.bins)
 
 	def group(self, dataframe):
@@ -154,12 +147,7 @@ class BinSet_Discrete:
 			# dataframe = self.original_data
 			groups = self.original_groups
 		else:
-			try:
-				groups = dataframe.groupby([self.col])
-			except:
-				print "col:", col
-				print dataframe
-				exit()
+			groups = dataframe.groupby([self.col])
 
 		colValCounts = groups.size()
 		_sum = float(np.sum(colValCounts))
@@ -212,18 +200,6 @@ class BinSet:
 
 		return marginal_entropy - sum_conditional
 
-		# sizes = dataframe.groupby(othercol).size()
-		# total = float(np.sum(sizes))
-		# sum_conditional = 0.0
-
-		# for val in pd.unique(dataframe[othercol]):
-		# 	val_prob = sizes[val] / total
-		# 	subdf = dataframe[dataframe[othercol] == val]
-		# 	val_entropy = self.delegate.entropy(subdf)
-		# 	sum_conditional += (val_prob * val_entropy)
-
-		# return marginal_entropy - sum_conditional
-
 class DecisionTree:
 	def __init__(self, binset, decisioncol):
 		self.binset = binset
@@ -239,17 +215,30 @@ class DecisionTree:
 		rowgroups = rows.groupby(groupkeys)
 
 		decisions = [None] * rows.shape[0]
+		confidence = [None] * rows.shape[0]
 		for groupkey, rowgroup in rowgroups:
-			groupdecisions = self.children[groupkey].decide(rowgroup)
+			# if groupkey not in self.children:
+			# 	continue
+			groupdecisions, groupconfidence = self.children[groupkey].decide(rowgroup)
+
 			for i, rowindex in enumerate(rowgroup.index):
 				decisions[rowindex] = groupdecisions[i]
+				confidence[rowindex] = groupconfidence[i]
 
-		return decisions
+		return (decisions, confidence)
+
+	def printChildren(self):
+		for index, key in enumerate(self.children):
+			sys.stdout.write("%s: %s\t" % (str(key), str(self.children[key])))
+			if index % 5 == 4:
+				print
+		sys.stdout.flush()
 
 class DecisionLeaf:
-	def __init__(self, dataframe=None, decisioncol=None, decision=None):
+	def __init__(self, dataframe=None, decisioncol=None, decision=None, confidence=None):
 		if (dataframe is not None) and (decisioncol is not None):
 			groups = dataframe.groupby(decisioncol)
+
 			maxkey = None
 			maxsize = 0
 			for key, data in groups:
@@ -257,13 +246,21 @@ class DecisionLeaf:
 					maxkey = key
 					maxsize = data.shape[0]
 			self.decision = maxkey
-		elif decision is not None:
+			self.confidence = float(groups.get_group(key).shape[0]) / dataframe.shape[0]
+		elif (decision is not None) and (confidence is not None):
 			self.decision = decision
+			self.confidence = confidence
 		else:
 			raise Exception("DecisionLeaf requires either (dataframe,decisioncol) or (decision)")
 
+	def __str__(self):
+		return "DecisionLeaf(%s)" % str(self.decision)
+
 	def decide(self, rows):
-		return [self.decision] * len(rows)
+		return (
+			[self.decision] * len(rows),
+			[self.confidence] * len(rows)
+		)
 
 write("loading training data")
 traindata = loadTrainingData(TRAIN_LIMIT)
@@ -293,18 +290,26 @@ def find_greatest_mutualinfo(dataframe, remaining_cols):
 	maxindex = np.argmax(mutualinfos)
 	return (remaining_cols[maxindex], mutualinfos[maxindex], binsets[maxindex])
 
+write("making decision tree")
 col, mutualinfo, binset = find_greatest_mutualinfo(traindata, featureCols[:])
-print col, mutualinfo
-
 dtree = DecisionTree(binset, "Label")
+writeDone()
 
 write("loading test data")
 testdata = loadTestData(TEST_LIMIT)
 writeDone()
 
-decisions = dtree.decide(testdata)
-print "s:", len(filter(lambda item: item=="s", decisions))
-print "b:", len(filter(lambda item: item=="b", decisions))
-# print "\n" + "\n".join(decisions)
+write("making decisions")
+decisions, confidence = dtree.decide(testdata)
+writeDone()
+
+write("writing output")
+testdata["Class"] = decisions
+testdata["confidence"] = confidence
+testdata = testdata.sort("confidence")
+testdata["RankOrder"] = range(1, testdata.shape[0] + 1)
+testdata = testdata.sort("EventId")
+testdata[["EventId", "RankOrder", "Class"]].to_csv("decisionTree2.csv", header=True, index=False)
+writeDone()
 
 writeDone(time.time() - global_start)
