@@ -1,12 +1,14 @@
 import numpy as np
 import pandas as pd
 from bkputils import *
-import math, time, sys
+import math, time, sys, zipfile, json
 
 global_start = time.time()
 
 TRAIN_LIMIT = None
 TEST_LIMIT = None
+CSV_OUTPUT_FILE = "decisionTree2.csv"
+ZIP_OUTPUT_FILE = CSV_OUTPUT_FILE + ".zip"
 
 class BinSet_Real:
 	def __init__(self, dataframe, col):
@@ -22,28 +24,43 @@ class BinSet_Real:
 		#points of the distribution so that we don't have dozens of bins
 		#with just a few data points in them
 		sortedData = np.sort(npData)
-		self.numbins = numbins = int(math.sqrt(npData.size))
-		bindices = np.linspace(0, npData.size-1, numbins+1).astype(np.int32) # bin + indices = bindices! lol I'm hilarious...
-		bins = sortedData[bindices]
+		self.numbins = numbins = int(math.sqrt(math.sqrt(npData.size)))
+		if self.numbins == 0:
+			self._hist = np.empty(0)
+			self._bins = np.empty(0)
+		else:
+			bindices = np.linspace(0, npData.size-1, numbins+1).astype(np.int32) # bin + indices = bindices! lol I'm hilarious...
+			try:
+				bins = sortedData[bindices]
+			except:
+				print
+				print sortedData
+				print bindices
+				print col
+				print dataframe
+				exit()
 
-		#generate histogram density
-		(self._hist, self._bins) = np.histogram(npData, bins, density=True)
-		self._maxval = self._bins[-1]
-		self._maxbindex = numbins # don't subtract one - numpy thinks bins are 1-based not 0-based
+			#generate histogram density
+			(self._hist, self._bins) = np.histogram(npData, bins, density=True)
+			# self._maxval = self._bins[-1]
+			# self._maxbindex = numbins # don't subtract one - numpy thinks bins are 1-based not 0-based
 
-		#account for probability of NA values
-		# probna + sum(bin_density*bin_width) needs to be equal to 1.0
-		self._hist = self._hist / (1.0 - probna)
+			#account for probability of NA values
+			# probna + sum(bin_density*bin_width) needs to be equal to 1.0
+			self._hist = self._hist / (1.0 - probna)
 
-		#add NaN to either end of our hist array for two reasons:
-		# 1 - numpy.digitize will now return the correct index of the bin. Don't have to worry about
-		#		index-out-of-bounds issues
-		# 2 - test data outside of our observed range will now produce numpy.nan for a probability density (instead
-		#		of density=0, which is clearly false - we just don't know what it is, therefore it's
-		#		better to not make assumptions and just ignore this outlier)
-		self._hist = np.array([np.nan] + (list(self._hist) + [np.nan]))
+			#add NaN to either end of our hist array for two reasons:
+			# 1 - numpy.digitize will now return the correct index of the bin. Don't have to worry about
+			#		index-out-of-bounds issues
+			# 2 - test data outside of our observed range will now produce numpy.nan for a probability density (instead
+			#		of density=0, which is clearly false - we just don't know what it is, therefore it's
+			#		better to not make assumptions and just ignore this outlier)
+			self._hist = np.array([np.nan] + (list(self._hist) + [np.nan]))
 
 		self.original_groups = self.group(dataframe)
+		if contains_empty_group(self.original_groups):
+			print_groups(self.original_groups)
+			exit()
 
 	def group(self, dataframe):
 		bindices = self._getbindices(dataframe[self.col])
@@ -201,16 +218,37 @@ class BinSet:
 		return marginal_entropy - sum_conditional
 
 class DecisionTree:
-	def __init__(self, binset, decisioncol):
+	def __init__(self, binset, decisioncol, remaining_cols, depth=0):
 		self.binset = binset
+		self.depth = depth
+
+		#decisioncol is the column we're making *about* (e.g. the class
+		#we're guessing, like "Label")
 		self.decisioncol = decisioncol
+
+		#col is the column we're using to inform our guess at this stage of the tree
+		#(eg "DER_mass_mmc")
 		self.col = self.binset.col
+
+		#remaining_cols is feature_cols without col, or any of the cols of
+		#the parent trees
+		self.remaining_cols = remaining_cols
 
 		self.children = {}
 		for key, group in binset.original_groups:
-			self.children[key] = DecisionLeaf(dataframe=group, decisioncol=decisioncol)
+			if group.shape[0] == 0:
+				print_groups(binset.original_groups)
+				exit()
+			self.children[key] = DecisionLeaf(self, key, group, decisioncol, remaining_cols)
+
+	def to_json_dict(self):
+		result = {}
+		for key in self.children:
+			result[key] = self.children[key].to_json_dict()
+		return result
 
 	def decide(self, rows):
+		rows["__ungrouped_index__"] = range(rows.shape[0])
 		groupkeys = self.binset.groupkeys(rows[self.col])
 		rowgroups = rows.groupby(groupkeys)
 
@@ -221,37 +259,72 @@ class DecisionTree:
 			# 	continue
 			groupdecisions, groupconfidence = self.children[groupkey].decide(rowgroup)
 
-			for i, rowindex in enumerate(rowgroup.index):
+			for i, rowindex in enumerate(rowgroup["__ungrouped_index__"]):
 				decisions[rowindex] = groupdecisions[i]
 				confidence[rowindex] = groupconfidence[i]
 
 		return (decisions, confidence)
 
 	def printChildren(self):
-		for index, key in enumerate(self.children):
-			sys.stdout.write("%s: %s\t" % (str(key), str(self.children[key])))
-			if index % 5 == 4:
-				print
-		sys.stdout.flush()
+		print
+		for i in xrange(1, self.binset.numbins+1):
+			print "%03d: %f - %f\t%d\t%f" % (
+				i,
+				self.binset.delegate._hist[i],
+				self.binset.delegate._hist[i+1],
+				self.children[i].dataframe.shape[0],
+				self.children[i]._get_next_mutualinfo()
+			)
+		# for index, key in enumerate(self.children):
+		# 	sys.stdout.write("%s: %s\t" % (str(key), str(self.children[key])))
+		# 	if index % 5 == 4:
+		# 		print
+		# sys.stdout.flush()
+
+	def find_best_leaf(self):
+		maxscore = 0.0
+		maxleaf = None
+		for childkey in self.children:
+			mutinf_tuple = self.children[childkey].find_best_leaf()
+			score, mutinf, leaf = mutinf_tuple
+			if score > maxscore:
+				maxscore = score
+				maxleaf = mutinf_tuple
+		return maxleaf
 
 class DecisionLeaf:
-	def __init__(self, dataframe=None, decisioncol=None, decision=None, confidence=None):
-		if (dataframe is not None) and (decisioncol is not None):
-			groups = dataframe.groupby(decisioncol)
+	def __init__(self, parent, parent_key, dataframe, decisioncol, remaining_cols):
 
-			maxkey = None
-			maxsize = 0
-			for key, data in groups:
-				if data.shape[0] > maxsize:
-					maxkey = key
-					maxsize = data.shape[0]
-			self.decision = maxkey
-			self.confidence = float(groups.get_group(key).shape[0]) / dataframe.shape[0]
-		elif (decision is not None) and (confidence is not None):
-			self.decision = decision
-			self.confidence = confidence
-		else:
-			raise Exception("DecisionLeaf requires either (dataframe,decisioncol) or (decision)")
+		if dataframe.shape[0] == 0:
+			raise Exception("foo")
+
+		groups = dataframe.groupby(decisioncol)
+
+		maxkey = None
+		maxsize = 0
+		for key, data in groups:
+			if data.shape[0] > maxsize:
+				maxkey = key
+				maxsize = data.shape[0]
+
+		#temp
+		self.s_size = groups.get_group("s").shape[0] if "s" in groups.groups else 0
+		self.b_size = groups.get_group("b").shape[0] if "b" in groups.groups else 0
+		self.total_size = dataframe.shape[0]
+
+
+		self.num_misclassified = dataframe.shape[0] - groups.get_group(maxkey).shape[0]
+
+		self.parent = parent
+		self.parent_key = parent_key
+		self.decision = maxkey
+		self.confidence = float(groups.get_group(maxkey).shape[0]) / dataframe.shape[0]
+		self.dataframe = dataframe
+		self.decisioncol = decisioncol
+		self.remaining_cols = remaining_cols
+
+		#we will compute these later, as needed. Nice to have them initialzed though (easer to check against None)
+		self.next_col, self.next_mutualinfo, self.next_binset = (None, None, None)
 
 	def __str__(self):
 		return "DecisionLeaf(%s)" % str(self.decision)
@@ -261,6 +334,53 @@ class DecisionLeaf:
 			[self.decision] * len(rows),
 			[self.confidence] * len(rows)
 		)
+
+	def _get_self_stats(self):
+		if self.next_col is None:
+			self.next_col, self.next_mutualinfo, self.next_binset = \
+				find_greatest_mutualinfo(self.dataframe, self.remaining_cols)
+			self.growth_potential = self.next_mutualinfo * self.dataframe.shape[0]
+			# self.growth_potential = self.num_misclassified
+		return (
+			self.next_mutualinfo,
+			self.growth_potential,
+			self.next_col,
+			self.next_binset
+		)
+
+	def find_best_leaf(self):
+		mi, growth_potential, __, __ = self._get_self_stats()
+		return (growth_potential, mi, self)
+
+	def to_tree(self):
+		muting, growth_potential, next_col, next_binset = self._get_self_stats() # make sure stuff is initialized (should be, but w/e...)
+		return DecisionTree(
+			next_binset,
+			self.decisioncol,
+			filter(lambda x: x != next_col, self.remaining_cols),
+			depth = self.parent.depth + 1
+		)
+
+	def to_json_dict(self):
+		return "%s (%04f%%: s*%d + b*%d = %d)" % (
+			self.decision,
+			self.confidence*100,
+			self.s_size,
+			self.b_size,
+			self.total_size
+		)
+
+
+def print_groups(groups):
+	for key, group in groups:
+		print str(key) + ":"
+		print group
+
+def contains_empty_group(groups):
+	for key, group in groups:
+		if group.shape[0] == 0:
+			return True
+	return False
 
 write("loading training data")
 traindata = loadTrainingData(TRAIN_LIMIT)
@@ -290,16 +410,44 @@ def find_greatest_mutualinfo(dataframe, remaining_cols):
 	maxindex = np.argmax(mutualinfos)
 	return (remaining_cols[maxindex], mutualinfos[maxindex], binsets[maxindex])
 
+# def iterate_tree_leaves(tree):
+# 	if isinstance(tree, DecisionLeaf):
+# 		yield tree
+# 	else:
+# 		for subtree in tree.children:
+# 			for leaf in iterate_tree_leaves(subtree):
+# 				yield leaf
+
+# def find_leaf_with_greatest_mutual_info(tree):
+# 	max_mutinf = 0.0
+# 	max_leaf = None
+# 	for leaf in iterate_tree_leaves(tree):
+# 		mutinf = leaf.mutualinfo()
+
+
 write("making decision tree")
 col, mutualinfo, binset = find_greatest_mutualinfo(traindata, featureCols[:])
-dtree = DecisionTree(binset, "Label")
-writeDone()
+dtree = DecisionTree(binset, "Label", filter(lambda x: x!=col, featureCols))
+
+print
+
+# print json.dumps(dtree.to_json_dict(), sort_keys=True, indent=4)
+# print "-----------------------------"
+
+for i in xrange(10):
+	write("iteration %d" % i)
+	score, mutualinfo, leaf = dtree.find_best_leaf()
+	leaf.parent.children[leaf.parent_key] = leaf.to_tree()
+	writeDone()
+
+print json.dumps(dtree.to_json_dict(), sort_keys=True, indent=4)
+exit()
 
 write("loading test data")
 testdata = loadTestData(TEST_LIMIT)
 writeDone()
 
-write("making decisions")
+write("applying decision tree")
 decisions, confidence = dtree.decide(testdata)
 writeDone()
 
@@ -309,7 +457,11 @@ testdata["confidence"] = confidence
 testdata = testdata.sort("confidence")
 testdata["RankOrder"] = range(1, testdata.shape[0] + 1)
 testdata = testdata.sort("EventId")
-testdata[["EventId", "RankOrder", "Class"]].to_csv("decisionTree2.csv", header=True, index=False)
+testdata[["EventId", "RankOrder", "Class"]].to_csv(CSV_OUTPUT_FILE, header=True, index=False)
+zf = zipfile.ZipFile(ZIP_OUTPUT_FILE, "w", zipfile.ZIP_DEFLATED)
+zf.write(CSV_OUTPUT_FILE)
+zf.close()
+
 writeDone()
 
 writeDone(time.time() - global_start)
