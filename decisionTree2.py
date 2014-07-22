@@ -387,19 +387,19 @@ traindata = loadTrainingData(TRAIN_LIMIT)
 featureCols = featureCols(only_float64=False)
 writeDone()
 
-# def printbin(col):
-# 	binset = BinSet(traindata, col)
-# 	print "%s\t[%d]\t%f\t%f" % (
-# 		# index,
-# 		col.ljust(30, " "),
-# 		binset.numbins,
-# 		binset.entropy(),
-# 		binset.mutualinfo("Label")
-# 	)
+def printbin(col):
+	binset = BinSet(traindata, col)
+	print "%s\t[%d]\t%f\t%f" % (
+		# index,
+		col.ljust(30, " "),
+		binset.numbins,
+		binset.entropy(),
+		binset.mutualinfo("Label")
+	)
 
-# for index, col in enumerate(featureCols):
-# 	printbin(col)
-# printbin("PRI_jet_num")
+for index, col in enumerate(featureCols):
+	printbin(col)
+printbin("PRI_jet_num")
 
 def find_greatest_mutualinfo(dataframe, remaining_cols):
 	binsets = [BinSet(dataframe, col) for col in remaining_cols]
@@ -434,11 +434,11 @@ print
 # print json.dumps(dtree.to_json_dict(), sort_keys=True, indent=4)
 # print "-----------------------------"
 
-for i in xrange(10):
-	write("iteration %d" % i)
-	score, mutualinfo, leaf = dtree.find_best_leaf()
-	leaf.parent.children[leaf.parent_key] = leaf.to_tree()
-	writeDone()
+# for i in xrange(10):
+# 	write("iteration %d" % i)
+# 	score, mutualinfo, leaf = dtree.find_best_leaf()
+# 	leaf.parent.children[leaf.parent_key] = leaf.to_tree()
+# 	writeDone()
 
 print json.dumps(dtree.to_json_dict(), sort_keys=True, indent=4)
 exit()
