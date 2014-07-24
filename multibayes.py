@@ -131,12 +131,14 @@ class VoronoiKde(object):
 				dt.points[neighborhood_indices],
 				dt.points[[point_index]]
 			))
-			ch = scipy.spatial.ConvexHull(neighborhood_points)
-			simplices = np.column_stack((
-				np.repeat(ch.vertices[0], ch.nsimplex),
-				ch.simplices
-			))
-			return np.sum(calc_simplex_volumes(simplices=dt.points[simplices]))
+			sub_dt = scipy.spatial.Delaunay(neighborhood_points)
+			return np.sum(calc_simplex_volumes(dtri=sub_dt))
+			# ch = scipy.spatial.ConvexHull(neighborhood_points)
+			# simplices = np.column_stack((
+			# 	np.repeat(ch.vertices[0], ch.nsimplex),
+			# 	ch.simplices
+			# ))
+			# return np.sum(calc_simplex_volumes(simplices=dt.points[simplices]))
 		bin_volumes = np.array([
 			voronoi_cell_volume(bin_index)
 			for bin_index in xrange(num_bins)

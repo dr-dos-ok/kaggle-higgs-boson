@@ -2,19 +2,18 @@ import pandas as pd
 import numpy as np
 import sqlite3, sys, time, math
 
-_write_time = None
-
+_write_time_stack = []
 def write(s):
-	global _write_time
-	_write_time = time.time()
+	global _write_time_stack
+	_write_time_stack.append(time.time())
 	sys.stdout.write(s+"...")
 	sys.stdout.flush()
 
 def writeDone(elapsed=None):
 	fmt = "Done - %s"
 	if elapsed == None:
-		global _write_time
-		elapsed = time.time() - _write_time
+		global _write_time_stack
+		elapsed = time.time() - _write_time_stack.pop()
 		fmt = " (%s)" % fmt
 	print fmt % fmtTime(elapsed)
 
