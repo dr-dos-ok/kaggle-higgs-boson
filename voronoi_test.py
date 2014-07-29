@@ -61,27 +61,25 @@ class TestVoronoiKde(unittest.TestCase):
 	def setUp(self):
 		self.kde = VoronoiKde(
 			"test_kde",
-			pd.DataFrame(
-				[
-					#bin points
-					[0.0, 0.0],		# 0
-					[0.0, 4.0],		# 1
-					[6.0, 0.0],		# 2
-					[0.0, -8.0],	# 3
-					[-2.0, 0.0],	# 4
+			pd.DataFrame([
+				#bin points
+				[0.0, 0.0],		# 0
+				[0.0, 4.0],		# 1
+				[6.0, 0.0],		# 2
+				[0.0, -8.0],	# 3
+				[-2.0, 0.0],	# 4
 
-					#fill points
-					[-2.0, -1.0],	# 4
-					[0.0, 3.0],		# 1
-					[1.0, 0.0],		# 0
-					[2.0, 0.0],		# 0
-					[2.0, -2.0],	# 0
-					[4.0, 0.0],		# 2
-					[5.0, 0.0]		# 2
-				],
-				target_cols=[1, 2],
-				bin_indices=range(5)
-			)
+				#fill points
+				[-2.0, -1.0],	# 4
+				[0.0, 3.0],		# 1
+				[1.0, 0.0],		# 0
+				[2.0, 0.0],		# 0
+				[2.0, -2.0],	# 0
+				[4.0, 0.0],		# 2
+				[5.0, 0.0]		# 2
+			]),
+			[0, 1],
+			bin_indices=range(5)
 		)
 
 		expected_volumes = np.array([
@@ -91,13 +89,33 @@ class TestVoronoiKde(unittest.TestCase):
 			8.0,	# 3
 			3.0		# 4
 		])
-		expected_volumes = np.array([
+		expected_counts = np.array([
 			4,	# 0
 			2,	# 1
 			3,	# 2
 			1,	# 3
 			2	# 4
 		])
+		expected_densities = (expected_counts / expected_volumes) / np.sum(expected_counts)
+
+		self.expected_counts = expected_counts
+		self.expected_volumes = expected_volumes
+		self.expected_densities = expected_densities
+
+	# def test_expectations(self):
+	# 	assert_equal(np.sum(self.expected_densities * self.expected_volumes), 1.0)
+
+	def test_kde(self):
+
+		print self.kde.bin_densities
+		print self.expected_densities
+
+		assert_array_almost_equal_nulp(
+			self.kde.bin_densities,
+			self.expected_densities,
+			nulp=3
+		)
+
 
 if __name__ == "__main__":
 	unittest.main()

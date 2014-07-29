@@ -64,88 +64,45 @@ class VoronoiKde(object):
 
 		self.name = name
 
-		# write("%s: randomly sampling bin points" % name)
-		num_bins = int(math.sqrt(dataframe.shape[0]))
 		if bin_indices is None:
+			num_bins = int(math.sqrt(dataframe.shape[0]))
 			bin_indices = pd.Series(random.sample(dataframe.index, num_bins))
-		# writeDone()
-		# print "	%d points, %d bins" % (dataframe.shape[0], num_bins)
+			zscores = self.z_scores(dataframe[target_cols], True)
+			self.bin_zscores = bin_zscores = zscores.ix[bin_indices]
+		else:
+			num_bins = len(bin_indices)
+			bin_zscores = dataframe.ix[bin_indices]
+			zscores = dataframe
 
-		# write("%s: calculating z-scores" % name)
-		zscores = self.z_scores(dataframe[target_cols], True)
-		self.bin_zscores = bin_zscores = zscores.ix[bin_indices]
-		# writeDone()
+		vor = scipy.spatial.Voronoi(bin_zscores)
 
-		# write("%s: calculating delaunay triangulation" % name)
-		dt = scipy.spatial.Delaunay(bin_zscores)
-		num_simplices = dt.simplices.shape[0]
-		# writeDone()
-		# print "	num_simplices:", num_simplices
-
-		# # write("%s: approximating bin volumes" % name)
-		# """
-		# 	Haven't found an easy/fast way to calculate voronoi cell volumes. The
-		# 	union of neighboring simplex should be a reasonable estimate. It will
-		# 	overshoot by a ratio of approximately 2**n where n=len(target_cols)=dimensions
-		# 	but that should normalize out when we normalize the probability densities
-		# """
-		# vertex_neighbor_simplices = [[] for i in xrange(num_bins)]
-		# for simplex_index, simplex in enumerate(dt.simplices):
-		# 	for point_index in simplex:
-		# 		vertex_neighbor_simplices[point_index].append(simplex_index)
-		# simplex_volumes = calc_simplex_volumes(dtri=dt)
-		# bin_volumes = np.array([
-		# 	sum(simplex_volumes[neighbor_simplices])
-		# 	for neighbor_simplices in vertex_neighbor_simplices
-		# ])
-		# # writeDone()
-
-		# write("%s: calculating voronoi cell volumes" % name)
-		indices, indptr = dt.vertex_neighbor_vertices
 		def voronoi_cell_volume(point_index):
-			neighborhood_indices = indptr[indices[point_index]:indices[point_index+1]]
-			neighborhood_points = np.concatenate((
-				dt.points[neighborhood_indices],
-				dt.points[[point_index]]
-			))
-			try:
-				sub_dt = scipy.spatial.Delaunay(neighborhood_points)
-			except:
-				print
-				print "name", name
-				print "point_index", point_index
-				print "dt (%d, %d)" % (len(dt.points), len(dt.points[0]))
-				print
-				print neighborhood_points
-				exit()
+			neighborhood_indices = vor.regions[vor.point_region[point_index]]
+			neighborhood_indices = filter(lambda x: x != -1, neighborhood_indices)
 
-			return np.sum(calc_simplex_volumes(dtri=sub_dt))
-			# ch = scipy.spatial.ConvexHull(neighborhood_points)
-			# simplices = np.column_stack((
-			# 	np.repeat(ch.vertices[0], ch.nsimplex),
-			# 	ch.simplices
-			# ))
-			# return np.sum(calc_simplex_volumes(simplices=dt.points[simplices]))
+			neighborhood_points = np.concatenate((
+				vor.vertices[neighborhood_indices],
+				vor.points[[point_index]]
+			))
+			sub_dt = scipy.spatial.Delaunay(neighborhood_points)
+			neighborhood_volume = np.sum(calc_simplex_volumes(dtri=sub_dt))
+
+			return neighborhood_volume
+
 		bin_volumes = np.array([
 			voronoi_cell_volume(bin_index)
 			for bin_index in xrange(num_bins)
 		])
-		# writeDone()
 
-		# write("%s: sorting points into bins" % name)
 		self.kdtree = kdtree = scipy.spatial.cKDTree(bin_zscores)
 		__, nearest_neighbor_index = kdtree.query(zscores)
 		nearest_neighbor_index = pd.Series(nearest_neighbor_index)
 		bin_counts = np.zeros(num_bins)
 		for bin_index, group in nearest_neighbor_index.groupby(nearest_neighbor_index):
 			bin_counts[bin_index] = group.size
-		# writeDone()
 
-		# write("%s: calculating bin densities" % name)
 		self.bin_densities = bin_counts / bin_volumes
 		self.bin_densities = self.bin_densities / np.sum(self.bin_densities * bin_volumes)
-
-		# writeDone()
 
 	def z_scores(self, dataframe, init):
 		if init:
@@ -179,13 +136,9 @@ class VoronoiKdeComparator(object):
 	def classify(self, dataframe):
 		df = dataframe[self.target_cols]
 		score_b = self.kde_b.score(df)
-		print "score_b", score_b
 		score_s = self.kde_s.score(df)
-		print "score_s", score_s
 		
 		score_ratio = score_s/score_b
-		print "score_ratio", score_ratio
-		exit()
 		return score_ratio
 
 def choose(n, k):
