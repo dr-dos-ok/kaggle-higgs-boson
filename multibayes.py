@@ -6,6 +6,8 @@ import math, time, sys, zipfile, json, random, scipy.spatial
 
 global_start = time.time()
 
+random.seed(42)
+
 TRAIN_LIMIT = 10000
 TEST_LIMIT = None
 CSV_OUTPUT_FILE = "multibayes.csv"

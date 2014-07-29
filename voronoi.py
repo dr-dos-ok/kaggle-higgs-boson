@@ -75,15 +75,29 @@ class VoronoiKde(object):
 			zscores = dataframe
 
 		vor = scipy.spatial.Voronoi(bin_zscores)
+		
+		delaunay_neighbor_lookup = dict([(index, []) for index in xrange(len(vor.points))])
+		for p1, p2 in vor.ridge_points:
+			delaunay_neighbor_lookup[p1].append(p2)
+			delaunay_neighbor_lookup[p2].append(p1)
+
+		def midpoint(p1, p2):
+			result = []
+			for i in range(len(p1)):
+				result.append((p1[i] + p2[i]) / 2.0)
+			return result
 
 		def voronoi_cell_volume(point_index):
 			neighborhood_indices = vor.regions[vor.point_region[point_index]]
-			neighborhood_indices = filter(lambda x: x != -1, neighborhood_indices)
+			is_infinite_region = -1 in neighborhood_indices
+			if is_infinite_region:
+				neighborhood_indices = filter(lambda x: x != -1, neighborhood_indices)
+			neighborhood_points = vor.vertices[neighborhood_indices].tolist() + vor.points[[point_index]].tolist()
+			if is_infinite_region:
+				point = vor.points[point_index]
+				for neighbor_point in delaunay_neighbor_lookup[point_index]:
+					neighborhood_points.append(midpoint(point, vor.points[neighbor_point]))
 
-			neighborhood_points = np.concatenate((
-				vor.vertices[neighborhood_indices],
-				vor.points[[point_index]]
-			))
 			sub_dt = scipy.spatial.Delaunay(neighborhood_points)
 			neighborhood_volume = np.sum(calc_simplex_volumes(dtri=sub_dt))
 

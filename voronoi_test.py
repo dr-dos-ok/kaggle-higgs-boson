@@ -106,10 +106,6 @@ class TestVoronoiKde(unittest.TestCase):
 	# 	assert_equal(np.sum(self.expected_densities * self.expected_volumes), 1.0)
 
 	def test_kde(self):
-
-		print self.kde.bin_densities
-		print self.expected_densities
-
 		assert_array_almost_equal_nulp(
 			self.kde.bin_densities,
 			self.expected_densities,
