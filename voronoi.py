@@ -5,12 +5,12 @@ import math, random, scipy.spatial
 def z_score(col):
 	"""Calculate the z-scores of a column or pandas.Series"""
 	mean = col.mean()
-	std = col.std()
+	std = col.std(ddof=0)
 	return (col - mean)/std
 
 def z_scores(df):
 	"""Calculate the z-scores of a dataframe on a column-by-column basis"""
-	return df.apply(z_score, 0)
+	return df.apply(z_score, axis=0)
 
 def calc_simplex_volumes(dtri=None, simplices=None):
 	"""
@@ -60,13 +60,14 @@ def calc_simplex_volumes(dtri=None, simplices=None):
 	return np.abs(invfact * np.linalg.det(shifted))
 
 class VoronoiKde(object):
-	def __init__(self, name, dataframe, target_cols):
+	def __init__(self, name, dataframe, target_cols, bin_indices=None):
 
 		self.name = name
 
 		# write("%s: randomly sampling bin points" % name)
 		num_bins = int(math.sqrt(dataframe.shape[0]))
-		bin_indices = pd.Series(random.sample(dataframe.index, num_bins))
+		if bin_indices is None:
+			bin_indices = pd.Series(random.sample(dataframe.index, num_bins))
 		# writeDone()
 		# print "	%d points, %d bins" % (dataframe.shape[0], num_bins)
 
