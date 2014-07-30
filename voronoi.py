@@ -74,6 +74,8 @@ class VoronoiKde(object):
 			zscores = self.z_scores(dataframe[target_cols], True)
 			bin_zscores = zscores.ix[bin_indices]
 		else:
+			if isinstance(bin_indices, list):
+				bin_indices = np.array(bin_indices)
 			num_bins = len(bin_indices)
 			bin_zscores = dataframe.ix[bin_indices]
 			zscores = dataframe
