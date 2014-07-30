@@ -68,17 +68,9 @@ for col_flags, group in traindata.groupby("row_col_flags"):
 		get_flagged_cols(col_flags)
 	)
 	writeDone()
-# for col_flags, group in traindata.groupby("row_col_flags"):
-# 	write("building VoronoiKdeComparator for {0:b}".format(col_flags))
-# 	comparator_lookup[col_flags] = comparator = VoronoiKdeComparator(
-# 		"{0:b}".format(col_flags),
-# 		group,
-# 		get_flagged_cols(col_flags, available_cols=target_cols)
-# 		# get_flagged_cols(col_flags)
-# 	)
-# 	writeDone()
-# 	to_pct = 100.0 / (comparator.num_s + comparator.num_b)
-# 	print "	[s: %02f%%, b: %02f%%]" % (comparator.num_s * to_pct, comparator.num_b * to_pct)
+
+print
+print_timers()
 print
 
 def score_df(df):

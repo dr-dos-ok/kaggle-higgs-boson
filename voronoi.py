@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
-import math, random, scipy.spatial, itertools
+from bkputils import *
+import math, random, itertools
+import scipy.spatial as spatial
+import scipy.spatial.distance as distance
 
 import matplotlib.pyplot as pyplot
 import matplotlib as mpl
@@ -68,6 +71,7 @@ class VoronoiKde(object):
 
 		self.name = name
 
+		start_timer("initialization")
 		if bin_indices is None:
 			num_bins = int(math.sqrt(dataframe.shape[0]))
 			bin_indices = pd.Series(random.sample(dataframe.index, num_bins))
@@ -79,20 +83,20 @@ class VoronoiKde(object):
 			num_bins = len(bin_indices)
 			bin_zscores = dataframe.ix[bin_indices]
 			zscores = dataframe
+		stop_timer("initialization")
 
-		vor = scipy.spatial.Voronoi(bin_zscores)
+		start_timer("initial Voronoi calculation")
+		vor = spatial.Voronoi(bin_zscores)
+		stop_timer("initial Voronoi calculation")
 		
+		start_timer("delaunay_neighbor_lookup")
 		delaunay_neighbor_lookup = dict([(index, []) for index in xrange(len(vor.points))])
 		for p1, p2 in vor.ridge_points:
 			delaunay_neighbor_lookup[p1].append(p2)
 			delaunay_neighbor_lookup[p2].append(p1)
+		stop_timer("delaunay_neighbor_lookup")
 
-		def midpoint(p1, p2):
-			result = []
-			for i in range(len(p1)):
-				result.append((p1[i] + p2[i]) / 2.0)
-			return result
-
+		start_timer("bin_regions")
 		bin_regions = []
 		bin_is_unique = np.array([True for i in range(num_bins)])
 		for point_index in range(num_bins):
@@ -104,10 +108,10 @@ class VoronoiKde(object):
 			if is_infinite_region:
 				point = vor.points[point_index]
 				for neighbor_point in vor.points[delaunay_neighbor_lookup[point_index]]:
-					neighborhood_points.append(midpoint(point, neighbor_point))
+					midpoint = (point + neighbor_point) / 2.0
+					neighborhood_points.append(midpoint)
 			if len(neighborhood_points) >= len(target_cols) + 1:
-				ch = scipy.spatial.ConvexHull(neighborhood_points)
-				bin_regions.append(ch.points[ch.vertices])
+				bin_regions.append(neighborhood_points)
 			else:
 				# probably a duplicate point that therefore has no volume
 				# and no neighborhood
@@ -115,37 +119,38 @@ class VoronoiKde(object):
 		num_bins = len(bin_regions)
 		bin_zscores = bin_zscores[bin_is_unique]
 		bin_indices = bin_indices[bin_is_unique]
-		
+		stop_timer("bin_regions")
 
 		def voronoi_cell_volume(point_index):
 			neighborhood_points = bin_regions[point_index]
-			try:
-				sub_dt = scipy.spatial.Delaunay(neighborhood_points)
-			except:
-				print neighborhood_points
-				exit()
+			sub_dt = spatial.Delaunay(neighborhood_points)
 			neighborhood_volume = np.sum(calc_simplex_volumes(dtri=sub_dt))
-
 			return neighborhood_volume
 
+		start_timer("bin_volumes")
 		bin_volumes = np.array([
 			voronoi_cell_volume(bin_index)
 			for bin_index in xrange(num_bins)
 		])
+		stop_timer("bin_volumes")
 
-		kdtree = scipy.spatial.cKDTree(bin_zscores)
-		__, nearest_neighbor_index = kdtree.query(zscores)
-		nearest_neighbor_index = pd.Series(nearest_neighbor_index)
+		start_timer("NearestNeighbor")
+		nn = NearestNeighbor(bin_zscores)
+		# nn = spatial.cKDTree(bin_zscores)
+		nearest_neighbor_index = pd.Series(nn.query(zscores))
 		bin_counts = np.zeros(num_bins)
 		for bin_index, group in nearest_neighbor_index.groupby(nearest_neighbor_index):
 			bin_counts[bin_index] = group.size
+		stop_timer("NearestNeighbor")
 
+		start_timer("bin_densities")
 		self.bin_densities = bin_counts / bin_volumes
 		self.bin_densities = self.bin_densities / np.sum(self.bin_densities * bin_volumes)
+		stop_timer("bin_densities")
 
 		self.bin_zscores = bin_zscores
 		self.bin_regions = bin_regions
-		self.kdtree = kdtree
+		self.nn = nn
 		self.target_cols = target_cols
 		self.num_bins = num_bins
 		self.num_points = zscores.shape[0]
@@ -161,7 +166,7 @@ class VoronoiKde(object):
 
 	def score(self, dataframe):
 		zscores = self.z_scores(dataframe, False)
-		__, nearest_neighbor_index = self.kdtree.query(zscores)
+		nearest_neighbor_index = self.nn.query(zscores)
 		return self.bin_densities[nearest_neighbor_index]
 
 	def plot_heatmap(self, fig, ax, norm, global_prob):
@@ -179,6 +184,18 @@ class VoronoiKde(object):
 		ax.set_xlabel(self.target_cols[0])
 		ax.set_ylabel(self.target_cols[1])
 		return np.array(data)
+
+class NearestNeighbor(object):
+	def __init__(self, points):
+		if not isinstance(points, np.ndarray):
+			points = points.values
+		self.points = points
+
+	def query(self, query_points):
+		if not isinstance(query_points, np.ndarray):
+			query_points = query_points.values
+		dist_matrix = distance.cdist(query_points, self.points)
+		return np.argmin(dist_matrix, axis=1)
 
 class VoronoiKdeComparator(object):
 	def __init__(self, name, dataframe, target_cols):

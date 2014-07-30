@@ -77,6 +77,41 @@ def loadTestData(numRows=None):
 		_testDataLoaded = True
 	return _testData
 
+_timers = []
+
+def start_timer(name):
+	global _timers
+	_timers.append((name, True, time.time()))
+
+def stop_timer(name):
+	global _timers
+	_timers.append((name, False, time.time()))
+
+def print_timers():
+	global _timers
+	timer_dict = {}
+	timer_starts = {}
+	timer_order = []
+	for name, is_start, event_time in _timers:
+		if name not in timer_dict:
+			timer_dict[name] = 0.0
+			timer_order.append(name)
+		if is_start:
+			timer_starts[name] = event_time
+		else:
+			prev_total = timer_dict[name]
+			new_total = prev_total + (event_time - timer_starts[name])
+			timer_starts[name] = None
+			timer_dict[name] = new_total
+
+	print
+	total_seconds = 0.0
+	for name in timer_order:
+		seconds = timer_dict[name]
+		total_seconds += seconds
+		print "%s:	%s" % (name, fmtTime(seconds))
+	print "TOTAL:	%s" % fmtTime(total_seconds)
+
 if __name__ == "__main__":
 	print fmtTime(1.23)
 	print fmtTime(66.1)
