@@ -1,6 +1,10 @@
 import pandas as pd
 import numpy as np
-import math, random, scipy.spatial
+import math, random, scipy.spatial, itertools
+
+import matplotlib.pyplot as pyplot
+import matplotlib as mpl
+from matplotlib.collections import PolyCollection
 
 def z_score(col):
 	"""Calculate the z-scores of a column or pandas.Series"""
@@ -68,7 +72,7 @@ class VoronoiKde(object):
 			num_bins = int(math.sqrt(dataframe.shape[0]))
 			bin_indices = pd.Series(random.sample(dataframe.index, num_bins))
 			zscores = self.z_scores(dataframe[target_cols], True)
-			self.bin_zscores = bin_zscores = zscores.ix[bin_indices]
+			bin_zscores = zscores.ix[bin_indices]
 		else:
 			num_bins = len(bin_indices)
 			bin_zscores = dataframe.ix[bin_indices]
@@ -87,18 +91,37 @@ class VoronoiKde(object):
 				result.append((p1[i] + p2[i]) / 2.0)
 			return result
 
-		def voronoi_cell_volume(point_index):
+		bin_regions = []
+		bin_is_unique = np.array([True for i in range(num_bins)])
+		for point_index in range(num_bins):
 			neighborhood_indices = vor.regions[vor.point_region[point_index]]
-			is_infinite_region = -1 in neighborhood_indices
+			is_infinite_region = (-1 in neighborhood_indices)
 			if is_infinite_region:
 				neighborhood_indices = filter(lambda x: x != -1, neighborhood_indices)
 			neighborhood_points = vor.vertices[neighborhood_indices].tolist() + vor.points[[point_index]].tolist()
 			if is_infinite_region:
 				point = vor.points[point_index]
-				for neighbor_point in delaunay_neighbor_lookup[point_index]:
-					neighborhood_points.append(midpoint(point, vor.points[neighbor_point]))
+				for neighbor_point in vor.points[delaunay_neighbor_lookup[point_index]]:
+					neighborhood_points.append(midpoint(point, neighbor_point))
+			if len(neighborhood_points) >= len(target_cols) + 1:
+				ch = scipy.spatial.ConvexHull(neighborhood_points)
+				bin_regions.append(ch.points[ch.vertices])
+			else:
+				# probably a duplicate point that therefore has no volume
+				# and no neighborhood
+				bin_is_unique[point_index] = False
+		num_bins = len(bin_regions)
+		bin_zscores = bin_zscores[bin_is_unique]
+		bin_indices = bin_indices[bin_is_unique]
+		
 
-			sub_dt = scipy.spatial.Delaunay(neighborhood_points)
+		def voronoi_cell_volume(point_index):
+			neighborhood_points = bin_regions[point_index]
+			try:
+				sub_dt = scipy.spatial.Delaunay(neighborhood_points)
+			except:
+				print neighborhood_points
+				exit()
 			neighborhood_volume = np.sum(calc_simplex_volumes(dtri=sub_dt))
 
 			return neighborhood_volume
@@ -108,7 +131,7 @@ class VoronoiKde(object):
 			for bin_index in xrange(num_bins)
 		])
 
-		self.kdtree = kdtree = scipy.spatial.cKDTree(bin_zscores)
+		kdtree = scipy.spatial.cKDTree(bin_zscores)
 		__, nearest_neighbor_index = kdtree.query(zscores)
 		nearest_neighbor_index = pd.Series(nearest_neighbor_index)
 		bin_counts = np.zeros(num_bins)
@@ -117,6 +140,13 @@ class VoronoiKde(object):
 
 		self.bin_densities = bin_counts / bin_volumes
 		self.bin_densities = self.bin_densities / np.sum(self.bin_densities * bin_volumes)
+
+		self.bin_zscores = bin_zscores
+		self.bin_regions = bin_regions
+		self.kdtree = kdtree
+		self.target_cols = target_cols
+		self.num_bins = num_bins
+		self.num_points = zscores.shape[0]
 
 	def z_scores(self, dataframe, init):
 		if init:
@@ -132,6 +162,22 @@ class VoronoiKde(object):
 		__, nearest_neighbor_index = self.kdtree.query(zscores)
 		return self.bin_densities[nearest_neighbor_index]
 
+	def plot_heatmap(self, fig, ax, norm, global_prob):
+		data = self.bin_regions
+		coll = PolyCollection(
+			data,
+			array=self.bin_densities * global_prob,
+			cmap=mpl.cm.jet,
+			norm=norm,
+			edgecolors="white",
+			linewidths = 0.5
+		)
+		ax.add_collection(coll)
+		fig.colorbar(coll, ax=ax)
+		ax.set_xlabel(self.target_cols[0])
+		ax.set_ylabel(self.target_cols[1])
+		return np.array(data)
+
 class VoronoiKdeComparator(object):
 	def __init__(self, name, dataframe, target_cols):
 
@@ -142,18 +188,61 @@ class VoronoiKdeComparator(object):
 		dataframe_s = dataframe[is_s]
 		self.kde_s = VoronoiKde(name + "[s]", dataframe_s, target_cols)
 		self.num_s = dataframe_s.shape[0]
+		self.prob_s = float(self.num_s) / dataframe.shape[0]
 
 		dataframe_b = dataframe[~is_s]
 		self.kde_b = VoronoiKde(name + "[b]", dataframe_b, target_cols)
 		self.num_b = dataframe_b.shape[0]
+		self.prob_b = float(self.num_b) / dataframe.shape[0]
 
 	def classify(self, dataframe):
 		df = dataframe[self.target_cols]
-		score_b = self.kde_b.score(df)
-		score_s = self.kde_s.score(df)
+		score_b = self.kde_b.score(df) * self.prob_b
+		score_s = self.kde_s.score(df) * self.prob_s
 		
 		score_ratio = score_s/score_b
 		return score_ratio
+
+	def plot(self):
+		pyplot.clf()
+		fig, (ax1, ax2) = pyplot.subplots(1, 2, sharex=True, sharey=True)
+
+		all_densities = np.concatenate((
+			self.kde_s.bin_densities * self.prob_s,
+			self.kde_b.bin_densities * self.prob_b
+		))
+		# all_min = min(all_densities)
+		all_max = max(all_densities)
+		norm = mpl.colors.Normalize(vmin=0.0, vmax=all_max)
+
+		points_s = self.kde_s.plot_heatmap(fig, ax1, norm, self.prob_s)
+		points_b = self.kde_b.plot_heatmap(fig, ax2, norm, self.prob_b)
+
+		# ax1.set_ylabel(self.kde_s.bin_zscores.columns[1])
+		fig.suptitle(self.name)
+		ax1.set_title("signal (%d of %d prob=%2.0f%%)" % (self.kde_s.num_bins, self.kde_s.num_points, self.prob_s*100))
+		ax2.set_title("background (%d of %d prob=%2.0f%%)" % (self.kde_b.num_bins, self.kde_b.num_points, self.prob_b*100))
+		# ax2.set_tit
+
+		def index_vals(points, index):
+			for sub_list in points:
+				for coords in sub_list:
+					yield coords[index]
+
+		xvals = list(index_vals(points_s, 0)) + list(index_vals(points_b, 0))
+		yvals = list(index_vals(points_s, 1)) + list(index_vals(points_b, 1))
+		# xmin = min(xvals)
+		# xmax = max(xvals)
+		# ymin = min(yvals)
+		# ymax = max(yvals)
+		# ax1.set_xlim([xmin, xmax])
+		# ax2.set_ylim([ymin, ymax])
+		ax1.set_xlim([-2, 2])
+		ax2.set_ylim([-2, 2])
+
+		pyplot.show()
+		__ = raw_input("Enter to continue...")
+		pyplot.close()
 
 def choose(n, k):
 	if k == 1:
@@ -220,3 +309,7 @@ class VoronoiKdeComparatorSet(object):
 			lookup[(score_ratios > 1.0).astype(np.int)],
 			confidences
 		)
+
+	def plot(self):
+		for comparator in self.comparator_set:
+			comparator.plot()

@@ -8,7 +8,7 @@ global_start = time.time()
 
 random.seed(42)
 
-TRAIN_LIMIT = 10000
+TRAIN_LIMIT = None
 TEST_LIMIT = None
 CSV_OUTPUT_FILE = "multibayes.csv"
 ZIP_OUTPUT_FILE = CSV_OUTPUT_FILE + ".zip"
@@ -51,17 +51,9 @@ print "TEST_LIMIT:", TEST_LIMIT
 print
 
 write("loading training data")
-traindata = loadTrainingData(TRAIN_LIMIT)
+traindata = loadTrainingData(TRAIN_LIMIT * 4 if TRAIN_LIMIT is not None else None)
 traindata = traindata[:TRAIN_LIMIT]
 feature_cols = featureCols(only_float64=True)
-# target_cols = [
-# 	"DER_mass_MMC",
-# 	"DER_mass_transverse_met_lep",
-# 	"DER_mass_vis",
-# 	"PRI_lep_phi",
-# 	"PRI_met_phi",
-# 	"PRI_tau_phi"
-# ]
 writeDone()
 print "	num rows:", traindata.shape[0]
 print
@@ -112,19 +104,19 @@ print "AMS:", ams(traindata["Class"], traindata)
 print "signal (actual): %2.2f%%" % (float(np.sum(traindata["Label"]=="s")) * 100.0 / np.sum(traindata.shape[0]))
 print "signal (predicted): %2.2f%%" % (float(np.sum(traindata["Class"]=="s")) * 100.0 / np.sum(traindata.shape[0]))
 
-# write("loading test data")
-# testdata = loadTestData(TEST_LIMIT)
-# writeDone()
+write("loading test data")
+testdata = loadTestData(TEST_LIMIT)
+writeDone()
 
-# write("classifying test data")
-# testdata = score_df(testdata)
-# writeDone()
+write("classifying test data")
+testdata = score_df(testdata)
+writeDone()
 
-# write("writing output")
-# testdata[["EventId", "RankOrder", "Class"]].to_csv(CSV_OUTPUT_FILE, header=True, index=False)
-# zf = zipfile.ZipFile(ZIP_OUTPUT_FILE, "w", zipfile.ZIP_DEFLATED)
-# zf.write(CSV_OUTPUT_FILE)
-# zf.close()
-# writeDone()
+write("writing output")
+testdata[["EventId", "RankOrder", "Class"]].to_csv(CSV_OUTPUT_FILE, header=True, index=False)
+zf = zipfile.ZipFile(ZIP_OUTPUT_FILE, "w", zipfile.ZIP_DEFLATED)
+zf.write(CSV_OUTPUT_FILE)
+zf.close()
+writeDone()
 
 writeDone(time.time() - global_start)
