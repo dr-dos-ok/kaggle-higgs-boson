@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from bkputils import *
 
+import math
+
 def z_score(col):
 	"""Calculate the z-scores of a column or pandas.Series"""
 	mean = col.mean()
@@ -38,6 +40,52 @@ def int_to_truth_combination(i, places):
 			result[index] = True
 		i = i >> 1
 	return tuple(result)
+
+# [[1],[2],[3]]
+# 
+# [
+#	[[4,1], [4,2], [4,3]],
+#	[[5,1], [5,2], [5,3]],
+#	[[6,1], [6,2], [6,3]]
+# ]
+
+def linspace_nd(min_corner, max_corner, num_per_dim):
+
+	num_dim = len(min_corner)
+
+	linspaces = [
+		np.linspace(min_corner[index], max_corner[index], num=num_per_dim)
+		for index in xrange(num_dim)
+	]
+
+	sides = np.meshgrid(*linspaces)
+
+	coord_indexes = [range(num_per_dim)]*num_dim
+	for coord in array_combinations(coord_indexes):
+		result = []
+		for i in xrange(num_dim):
+			result.append(sides[i][coord])
+		yield tuple(result)
+
+def array_combinations(arrays):
+	arr = arrays[0]
+	if len(arrays) == 1:
+		for item in arr:
+			yield (item,)
+	else:
+		for sub_item in array_combinations(arrays[1:]):
+			for item in arr:
+				yield (item,) + sub_item
+
+def _linspace_combinations(sides):
+	side = sides[0]
+	if len(sides) == 1:
+		for item in side:
+			yield (item,)
+	else:
+		for item in side:
+			for sub_item in _linspace_combinations(sides[1:]):
+				yield (item,) + sub_item
 
 class Partition(object):
 	def __init__(self, points, min_corner, max_corner, include_max=None):
@@ -92,10 +140,41 @@ class Partition(object):
 			result.append(sub_partition)
 		return result
 
+class PartitionSet(object):
+	def __init__(self, points):
 
-if __name__ == "__main__":
-	# print int_to_truth_combination(1, 3)
-	# for i in range(8):
-	# 	print i, int_to_truth_combination(i, 3)
-	for index, com in enumerate(truth_combinations(3)):
-		print str(index) + ":", com, truth_combination_to_int(com), int_to_truth_combination(truth_combination_to_int(com), 3)
+		self.points = points
+		self.npoints, self.ndim = points.shape
+		self.min_corner = np.min(points, axis=0)
+		self.max_corner = np.max(points, axis=0)
+
+		self.partitions = [Partition(points, self.min_corner, self.max_corner)]
+
+	def train(division_cutoff=None, max_depth=None):
+		sqrt = int(math.floor(math.sqrt(self.npoints)))
+		if division_cutoff is None:
+			division_cutoff = sqrt
+		if max_depth is None:
+			max_depth = sqrt
+
+		final_partitions = []
+
+		done = False
+		remaining_partitions = self.partitions
+		depth = 0
+		while len(remaining_partitions) > 0 and depth <= max_depth:
+			next_iteration = []
+			for partition in remaining_partitions:
+				if partition.count < division_cutoff:
+					final_partitions.append(partition)
+				else:
+					next_iteration += partition.split()
+			remaining_partitions = next_iteration
+			depth += 1
+		self.partitions = final_partitions
+		self.depth = depth
+
+		bins_per_dim = 2**(depth-1)
+
+		density_matrix = np.empty([bins_per_dim] * self.ndim)
+

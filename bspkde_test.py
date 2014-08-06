@@ -79,6 +79,21 @@ class TestFunctions(unittest.TestCase):
 				int_to_truth_combination(i, 3)
 			)
 
+	def test_linspace_nd(self):
+		expected_values = [
+			(0, 0),
+			(0, 1),
+			(1, 0),
+			(1, 1)
+		]
+		actual_values = [
+			coords for coords in linspace_nd((0, 0), (1, 1), 2)
+		]
+
+		num_values = len(expected_values)
+		self.assertEqual(num_values, len(actual_values))
+		for index in range(num_values):
+			assert_array_equal(expected_values[index], actual_values[index])
 
 class TestPartition(unittest.TestCase):
 	def setUp(self):
