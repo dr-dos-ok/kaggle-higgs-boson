@@ -243,5 +243,21 @@ class TestPartition(unittest.TestCase):
 				s.points
 			)
 
+	def test_get_child_indices(self):
+		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p.children = p.split() #simulated training
+
+		indices = p.get_child_indices(self.pts)
+		expected = np.array([
+			3, 3, 3, 3, 2, 2, 0, 1, 1, 3, 3, 3, 2, 2, 0, 1, 1
+		])
+		assert_array_equal(indices, expected)
+
+		for child_index, child_partition in enumerate(p.children):
+			assert_array_equal(
+				child_partition.is_in_partition(self.pts),
+				indices == child_index
+			)
+
 if __name__ == "__main__":
 	unittest.main()

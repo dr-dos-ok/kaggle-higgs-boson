@@ -77,20 +77,11 @@ def array_combinations(arrays):
 			for item in arr:
 				yield (item,) + sub_item
 
-def _linspace_combinations(sides):
-	side = sides[0]
-	if len(sides) == 1:
-		for item in side:
-			yield (item,)
-	else:
-		for item in side:
-			for sub_item in _linspace_combinations(sides[1:]):
-				yield (item,) + sub_item
-
 class Partition(object):
 	def __init__(self, points, min_corner, max_corner, include_max=None):
 		self.min_corner = min_corner
 		self.max_corner = max_corner
+		self.midpoint = (self.max_corner + self.min_corner) / 2.0
 		
 		if include_max is None:
 			include_max = np.ones(points.shape[1], dtype=np.bool)
@@ -98,6 +89,8 @@ class Partition(object):
 
 		self.points = self.filter(points)
 		self.npoints, self.ndim = self.points.shape
+
+		self.children = None
 
 	def volume(self):
 		return np.prod(np.fabs(self.max_corner - self.min_corner))
@@ -116,8 +109,22 @@ class Partition(object):
 		inside = self.is_in_partition(points)
 		return points[inside]
 
+	def train(self, maxdepth=None, min_pts=None):
+		sqrt = int(math.floor(math.sqrt(self.npoints)))
+		if split_min is None:
+			split_min = sqrt
+		if maxdepth is None:
+			maxdepth = sqrt
+
+		if maxdepth <= 0 or self.npoints < min_pts:
+			return
+		else:
+			self.children = self.split()
+			for child in self.children:
+				child.train(maxdepth=maxdepth-1, min_pts=min_pts)
+
 	def split(self):
-		midpoint = (self.max_corner + self.min_corner) / 2.0
+		midpoint = self.midpoint
 
 		result = []
 		for index_tuple in truth_combinations(self.ndim):
@@ -140,41 +147,67 @@ class Partition(object):
 			result.append(sub_partition)
 		return result
 
-class PartitionSet(object):
-	def __init__(self, points):
+	def get_density_estimates(self, pts):
+		if self.children is None:
+			density = self.density()
+			return np.array([density] * pts.shape[0])
+		else:
+			midpoint = self.midpoint
+		raise Exception("Not Implemented")
 
-		self.points = points
-		self.npoints, self.ndim = points.shape
-		self.min_corner = np.min(points, axis=0)
-		self.max_corner = np.max(points, axis=0)
+	def get_child_indices(self, pts):
+		midpoint = self.midpoint
 
-		self.partitions = [Partition(points, self.min_corner, self.max_corner)]
+		ndim = midpoint.shape[0]
+		results = np.zeros(pts.shape[0], dtype=np.int32)
+		for dim_num in range(ndim):
+			dim_index = ndim - dim_num - 1
+			addend = 1<<dim_num # 1<<x == 2**x
+			results[pts[:,dim_index] >= midpoint[dim_index]] += addend
+		return results
 
-	def train(division_cutoff=None, max_depth=None):
-		sqrt = int(math.floor(math.sqrt(self.npoints)))
-		if division_cutoff is None:
-			division_cutoff = sqrt
-		if max_depth is None:
-			max_depth = sqrt
+# class PartitionSet(object):
+# 	def __init__(self, points):
 
-		final_partitions = []
+# 		self.points = points
+# 		self.npoints, self.ndim = points.shape
+# 		self.min_corner = np.min(points, axis=0)
+# 		self.max_corner = np.max(points, axis=0)
 
-		done = False
-		remaining_partitions = self.partitions
-		depth = 0
-		while len(remaining_partitions) > 0 and depth <= max_depth:
-			next_iteration = []
-			for partition in remaining_partitions:
-				if partition.count < division_cutoff:
-					final_partitions.append(partition)
-				else:
-					next_iteration += partition.split()
-			remaining_partitions = next_iteration
-			depth += 1
-		self.partitions = final_partitions
-		self.depth = depth
+# 		self.partitions = [Partition(points, self.min_corner, self.max_corner)]
 
-		bins_per_dim = 2**(depth-1)
+# 	def train(division_cutoff=None, max_depth=None):
+# 		sqrt = int(math.floor(math.sqrt(self.npoints)))
+# 		if division_cutoff is None:
+# 			division_cutoff = sqrt
+# 		if max_depth is None:
+# 			max_depth = sqrt
 
-		density_matrix = np.empty([bins_per_dim] * self.ndim)
+# 		final_partitions = []
 
+# 		done = False
+# 		remaining_partitions = self.partitions
+# 		depth = 0
+# 		while len(remaining_partitions) > 0 and depth <= max_depth:
+# 			next_iteration = []
+# 			for partition in remaining_partitions:
+# 				if partition.count < division_cutoff:
+# 					final_partitions.append(partition)
+# 				else:
+# 					next_iteration += partition.split()
+# 			remaining_partitions = next_iteration
+# 			depth += 1
+# 		self.partitions = final_partitions
+# 		self.depth = depth
+
+# 		bins_per_dim = 2**(depth-1)
+
+# 		density_matrix = np.empty([bins_per_dim] * self.ndim)
+
+# 		for partition in self.partitions:
+# 			percentage = float(partition.max_corner[0] - partition.min_corner[0]) / (self.max_corner[0] - self.min_corner[0])
+# 			print "percentage:", percentage
+# 			points_per_side = int(bins_per_dim * percentage)
+# 			print "points_per_side", points_per_side
+# 			exit()
+# 			for coord in linspace_nd(partition.min_corner, partition.max_corner, FOO):
