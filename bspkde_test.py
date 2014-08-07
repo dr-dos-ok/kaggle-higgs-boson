@@ -46,55 +46,6 @@ class TestFunctions(unittest.TestCase):
 			self.assertEqual(com, expected[index])
 		self.assertEqual(count, expected_count)
 
-	def test_truth_combination_to_int(self):
-		test_cases = [
-			(False, False, False),
-			(False, False, True),
-			(False, True, False),
-			(False, True, True),
-			(True, False, False),
-			(True, False, True),
-			(True, True, False),
-			(True, True, True)
-		]
-
-		for expected, test_case in enumerate(test_cases):
-			self.assertEqual(expected, truth_combination_to_int(test_case))
-
-	def test_int_to_truth_combination(self):
-		expected_values = [
-			(False, False, False),
-			(False, False, True),
-			(False, True, False),
-			(False, True, True),
-			(True, False, False),
-			(True, False, True),
-			(True, True, False),
-			(True, True, True)
-		]
-
-		for i, expected in enumerate(expected_values):
-			self.assertEqual(
-				expected,
-				int_to_truth_combination(i, 3)
-			)
-
-	def test_linspace_nd(self):
-		expected_values = [
-			(0, 0),
-			(0, 1),
-			(1, 0),
-			(1, 1)
-		]
-		actual_values = [
-			coords for coords in linspace_nd((0, 0), (1, 1), 2)
-		]
-
-		num_values = len(expected_values)
-		self.assertEqual(num_values, len(actual_values))
-		for index in range(num_values):
-			assert_array_equal(expected_values[index], actual_values[index])
-
 class TestPartition(unittest.TestCase):
 	def setUp(self):
 		self.pts = np.array([
