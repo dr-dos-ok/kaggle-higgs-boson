@@ -78,7 +78,7 @@ def array_combinations(arrays):
 				yield (item,) + sub_item
 
 class Partition(object):
-	def __init__(self, points, min_corner, max_corner, include_max=None):
+	def __init__(self, points, min_corner, max_corner, include_max=None, normalizing_constant=None):
 		self.min_corner = min_corner
 		self.max_corner = max_corner
 		self.midpoint = (self.max_corner + self.min_corner) / 2.0
@@ -90,13 +90,17 @@ class Partition(object):
 		self.points = self.filter(points)
 		self.npoints, self.ndim = self.points.shape
 
+		if normalizing_constant is None:
+			normalizing_constant = self.npoints
+		self.normalizing_constant = normalizing_constant
+
 		self.children = None
 
 	def volume(self):
 		return np.prod(np.fabs(self.max_corner - self.min_corner))
 
 	def density(self):
-		return self.npoints / self.volume()
+		return self.npoints / (self.volume() * self.normalizing_constant)
 
 	def is_in_partition(self, points):
 		gt_min = points >= self.min_corner
@@ -142,7 +146,8 @@ class Partition(object):
 			sub_partition = Partition(
 				self.points,
 				sub_min, sub_max,
-				include_max=include_max
+				include_max=include_max,
+				normalizing_constant = self.normalizing_constant
 			)
 			result.append(sub_partition)
 		return result
@@ -152,8 +157,14 @@ class Partition(object):
 			density = self.density()
 			return np.array([density] * pts.shape[0])
 		else:
-			midpoint = self.midpoint
-		raise Exception("Not Implemented")
+			pt_child_indexes = self.get_child_indices(pts)
+			result = np.empty(pts.shape[0], dtype=np.float64)
+			for child_index, child in enumerate(self.children):
+				mapped_to_child = (pt_child_indexes == child_index)
+				return_indices = np.nonzero(mapped_to_child)
+				sub_densities = child.get_density_estimates(pts[mapped_to_child])
+				result[return_indices] = sub_densities
+			return result
 
 	def get_child_indices(self, pts):
 		midpoint = self.midpoint

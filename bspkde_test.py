@@ -131,7 +131,10 @@ class TestPartition(unittest.TestCase):
 
 	def test_density(self):
 		p = Partition(self.pts, self.min_outer, self.max_outer)
-		self.assertEqual(17 / 16.0, p.density())
+		self.assertEqual(
+			1.0,
+			p.density() * p.volume()
+		)
 
 	def test_is_in_partition(self):
 		expected = np.array(
@@ -258,6 +261,21 @@ class TestPartition(unittest.TestCase):
 				child_partition.is_in_partition(self.pts),
 				indices == child_index
 			)
+
+	def test_get_density_estimates(self):
+		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p.children = p.split() #simulated training
+
+		quadrant_counts = np.array([2, 4, 4, 7]).astype(np.float64)
+		quadrant_pcts = quadrant_counts / np.sum(quadrant_counts)
+		quadrant_densities = quadrant_pcts / 4.0 # shortcut - all volumes are 4.0
+		expected_quadrants = np.array([
+			3, 3, 3, 3, 2, 2, 0, 1, 1, 3, 3, 3, 2, 2, 0, 1, 1
+		])
+		expected_densities = quadrant_densities[expected_quadrants]
+
+		densities = p.get_density_estimates(self.pts)
+		assert_array_equal(expected_densities, densities)
 
 if __name__ == "__main__":
 	unittest.main()
