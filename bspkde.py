@@ -29,9 +29,13 @@ def truth_combinations(n):
 			yield (True,) + com
 
 class Partition(object):
-	def __init__(self, points, min_corner, max_corner, include_max=None, normalizing_constant=None):
+	def __init__(self, name, points, min_corner, max_corner, include_max=None, normalizing_constant=None):
+
+		self.name = name
+
 		self.min_corner = min_corner
 		self.max_corner = max_corner
+		
 		self.midpoint = (self.max_corner + self.min_corner) / 2.0
 		
 		if include_max is None:
@@ -96,6 +100,7 @@ class Partition(object):
 					sub_min[dim_index] = self.min_corner[dim_index]
 					sub_max[dim_index] = midpoint[dim_index]
 			sub_partition = Partition(
+				"(child)",
 				self.points,
 				sub_min, sub_max,
 				include_max=include_max,
@@ -140,6 +145,15 @@ class Partition(object):
 			return 1 # self
 		else:
 			return sum([child.count_leaf_children() for child in self.children])
+
+	def get_xlim(self):
+		return (self.min_corner[0], self.max_corner[0])
+
+	def get_ylim(self):
+		return (self.min_corner[1], self.max_corner[1])
+
+	def title(self):
+		return "%s (%d leafs, %d pts)" % (self.name, self.count_leaf_children(), self.points.shape[0])
 
 	def plot(self):
 		pyplot.clf()
@@ -195,3 +209,84 @@ class Partition(object):
 		fig.colorbar(coll, ax=ax)
 		# ax.set_xlabel(self.)
 		return np.array(data)
+
+class KdeComparator(object):
+	def __init__(self, name, dataframe, target_cols):
+		
+		self.target_cols = target_cols
+		self.name = name
+
+		is_s = dataframe["Label"] == "s"
+		dataframe_s = dataframe[is_s]
+		self.kde_s = self.make_kde("signal", dataframe_s)
+		self.num_s = dataframe_s.shape[0]
+		self.prob_s = float(self.num_s) / dataframe.shape[0]
+
+		dataframe_b = dataframe[~is_s]
+		self.kde_b = self.make_kde("background", dataframe_b)
+		self.num_b = dataframe_b.shape[0]
+		self.prob_b = float(self.num_b) / dataframe.shape[0]
+
+	def make_kde(self, name, dataframe):
+		raise Exception("You should make a class that subclasses KdeComparator and overrides make_kde()")
+
+	def classify(self, dataframe):
+		df = dataframe[self.target_cols]
+		score_b = self.kde_b.score(df) * self.prob_b
+		score_s = self.kde_s.score(df) * self.prob_s
+		
+		score_ratio = score_s/score_b
+		return score_ratio
+
+	def plot(self):
+		pyplot.clf()
+		fig, (ax1, ax2) = pyplot.subplots(1, 2, sharex=True, sharey=True)
+
+		max_density = max(self.kde_s.max_density(), self.kde_b.max_density())
+		norm = mpl.colors.Normalize(vmin=0.0, vmax=max_density)
+
+		points_s = self.kde_s.plot_heatmap(fig, ax1, norm)
+		points_b = self.kde_b.plot_heatmap(fig, ax2, norm)
+
+		fig.suptitle(self.name)
+		# ax1.set_title("signal (%d of %d prob=%2.0f%%)" % (self.kde_s.num_bins, self.kde_s.npoints, self.prob_s*100))
+		# ax2.set_title("background (%d of %d prob=%2.0f%%)" % (self.kde_b.num_bins, self.kde_b.npoints, self.prob_b*100))
+		ax1.set_title(self.kde_s.title())
+		ax2.set_title(self.kde_b.title())
+
+		xlim_s = self.kde_s.get_xlim()
+		xlim_b = self.kde_b.get_xlim()
+		ax1.set_xlim([
+			min(xlim_s[0], xlim_b[0]),
+			min(xlim_s[1], xlim_b[1])
+		])
+
+		ylim_s = self.kde_s.get_ylim()
+		ylim_b = self.kde_b.get_ylim()
+		ax1.set_ylim([
+			min(ylim_s[0], ylim_b[0]),
+			min(ylim_s[1], ylim_b[1])
+		])
+
+		pyplot.show()
+		__ = raw_input("Enter to continue...")
+		pyplot.close()
+
+class BspKdeComparator(KdeComparator):
+	def __init__(self, name, dataframe, target_cols):
+		super(BspKdeComparator, self).__init__(name, dataframe, target_cols)
+
+	def make_kde(self, name, dataframe):
+
+		min_corner = np.amin(dataframe[self.target_cols].values, axis=0)
+		max_corner = np.amax(dataframe[self.target_cols].values, axis=0)
+
+		diff = max_corner - min_corner
+		margin = 0.05 * diff
+		max_corner = max_corner + margin
+		min_corner = min_corner - margin
+
+		p = Partition(name, dataframe[self.target_cols].values, min_corner, max_corner)
+		p.train()
+
+		return p

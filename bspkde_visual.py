@@ -48,17 +48,7 @@ writeDone()
 print "	num rows:", traindata.shape[0]
 print
 
-min_corner = np.amin(traindata[feature_cols].values, axis=0)
-max_corner = np.amax(traindata[feature_cols].values, axis=0)
-diff = max_corner - min_corner
-margin = 0.05 * diff
-max_corner = max_corner + margin
-min_corner = min_corner - margin
-
-p = bspkde.Partition(traindata[feature_cols].values, min_corner, max_corner)
-p.train()
-print "num leaves:", p.count_leaf_children()
+comparator = bspkde.BspKdeComparator("foo", traindata, feature_cols)
 
 pyplot.ion()
-p.plot()
-__ = raw_input("Enter to exit...")
+comparator.plot()
