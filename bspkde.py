@@ -4,6 +4,10 @@ from bkputils import *
 
 import math
 
+import matplotlib.pyplot as pyplot
+import matplotlib as mpl
+from matplotlib.collections import PolyCollection
+
 def z_score(col):
 	"""Calculate the z-scores of a column or pandas.Series"""
 	mean = col.mean()
@@ -61,9 +65,10 @@ class Partition(object):
 		return points[inside]
 
 	def train(self, maxdepth=None, min_pts=None):
+
 		sqrt = int(math.floor(math.sqrt(self.npoints)))
-		if split_min is None:
-			split_min = sqrt
+		if min_pts is None:
+			min_pts = 2.0 * sqrt # TODO - figure out a better heuristic
 		if maxdepth is None:
 			maxdepth = sqrt
 
@@ -123,3 +128,70 @@ class Partition(object):
 			addend = 1<<dim_num # 1<<x == 2**x
 			results[pts[:,dim_index] >= midpoint[dim_index]] += addend
 		return results
+
+	def max_density(self):
+		if self.children is None:
+			return self.density()
+		else:
+			return max([child.max_density() for child in self.children])
+
+	def count_leaf_children(self):
+		if self.children is None:
+			return 1 # self
+		else:
+			return sum([child.count_leaf_children() for child in self.children])
+
+	def plot(self):
+		pyplot.clf()
+		fig, ax = pyplot.subplots(1, 1)
+		norm = mpl.colors.Normalize(vmin=0.0, vmax=self.max_density())
+
+		ax.set_xlim([self.min_corner[0], self.max_corner[0]])
+		ax.set_ylim([self.min_corner[1], self.max_corner[1]])
+		self.plot_heatmap(fig, ax, norm)
+
+		pyplot.show()
+
+	def _get_polys(self):
+		if self.children is None:
+			return (
+				[[
+					[self.min_corner[0], self.min_corner[1]],
+					[self.min_corner[0], self.max_corner[1]],
+					[self.max_corner[0], self.max_corner[1]],
+					[self.max_corner[0], self.min_corner[1]]
+				]],
+				[self.density()]
+			)
+		else:
+			result_polys = []
+			result_densities = []
+
+			for child in self.children:
+				child_polys, child_densities = child._get_polys()
+
+				for index in xrange(len(child_densities)):
+					result_polys.append(child_polys[index])
+					result_densities.append(child_densities[index])
+
+			return (result_polys, result_densities)
+
+	def plot_heatmap(self, fig, ax, norm):
+		data, densities = self._get_polys()
+
+		data = np.array(data)
+		densities = np.array(densities)
+
+		coll = PolyCollection(
+			data,
+			array=densities,
+			cmap=mpl.cm.jet,
+			norm=norm,
+			edgecolors="none"
+			# linewidths=0.5
+		)
+
+		ax.add_collection(coll)
+		fig.colorbar(coll, ax=ax)
+		# ax.set_xlabel(self.)
+		return np.array(data)

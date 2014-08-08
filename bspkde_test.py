@@ -83,8 +83,8 @@ class TestPartition(unittest.TestCase):
 	def test_density(self):
 		p = Partition(self.pts, self.min_outer, self.max_outer)
 		self.assertEqual(
-			1.0,
-			p.density() * p.volume()
+			p.density(),
+			1.0 / 16.0
 		)
 
 	def test_is_in_partition(self):
