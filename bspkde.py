@@ -28,6 +28,20 @@ def truth_combinations(n):
 		for com in truth_combinations(n-1):
 			yield (True,) + com
 
+def choose(n, k):
+	if k == 1:
+		for item in n:
+			yield [item]
+	elif len(n) == k:
+		yield n
+	else:
+		current = [n[0]]
+		remaining = n[1:]
+		for sub_result in choose(remaining, k-1):
+			yield current + sub_result
+		for sub_result in choose(remaining, k):
+			yield sub_result
+
 class Partition(object):
 	def __init__(self, name, points, min_corner, max_corner, include_max=None, normalizing_constant=None):
 
@@ -210,6 +224,9 @@ class Partition(object):
 		# ax.set_xlabel(self.)
 		return np.array(data)
 
+	def score(self, dataframe):
+		return self.get_density_estimates(dataframe.values)
+
 class KdeComparator(object):
 	def __init__(self, name, dataframe, target_cols):
 		
@@ -218,12 +235,12 @@ class KdeComparator(object):
 
 		is_s = dataframe["Label"] == "s"
 		dataframe_s = dataframe[is_s]
-		self.kde_s = self.make_kde("signal", dataframe_s)
+		self.kde_s = self.make_kde("signal", dataframe_s, dataframe)
 		self.num_s = dataframe_s.shape[0]
 		self.prob_s = float(self.num_s) / dataframe.shape[0]
 
 		dataframe_b = dataframe[~is_s]
-		self.kde_b = self.make_kde("background", dataframe_b)
+		self.kde_b = self.make_kde("background", dataframe_b, dataframe)
 		self.num_b = dataframe_b.shape[0]
 		self.prob_b = float(self.num_b) / dataframe.shape[0]
 
@@ -258,14 +275,14 @@ class KdeComparator(object):
 		xlim_b = self.kde_b.get_xlim()
 		ax1.set_xlim([
 			min(xlim_s[0], xlim_b[0]),
-			min(xlim_s[1], xlim_b[1])
+			max(xlim_s[1], xlim_b[1])
 		])
 
 		ylim_s = self.kde_s.get_ylim()
 		ylim_b = self.kde_b.get_ylim()
 		ax1.set_ylim([
 			min(ylim_s[0], ylim_b[0]),
-			min(ylim_s[1], ylim_b[1])
+			max(ylim_s[1], ylim_b[1])
 		])
 
 		pyplot.show()
@@ -276,10 +293,10 @@ class BspKdeComparator(KdeComparator):
 	def __init__(self, name, dataframe, target_cols):
 		super(BspKdeComparator, self).__init__(name, dataframe, target_cols)
 
-	def make_kde(self, name, dataframe):
+	def make_kde(self, name, dataframe, superframe):
 
-		min_corner = np.amin(dataframe[self.target_cols].values, axis=0)
-		max_corner = np.amax(dataframe[self.target_cols].values, axis=0)
+		min_corner = np.amin(superframe[self.target_cols].values, axis=0)
+		max_corner = np.amax(superframe[self.target_cols].values, axis=0)
 
 		diff = max_corner - min_corner
 		margin = 0.05 * diff
@@ -290,3 +307,60 @@ class BspKdeComparator(KdeComparator):
 		p.train()
 
 		return p
+
+class ComparatorSet(object):
+	def __init__(self, col_flags_str, dataframe, cols):
+
+		self.available_cols = cols
+		
+		# PRI_jet_all_pt is purely zeroes in some groups where
+		# the other jet columns are all -999 (nan). In that case
+		# this has zero information to give us, and will cause
+		# headaches with the Delaunay Triangulation, so just
+		# remove it.
+		# 
+		# Update: similar logic for DER_pt_tot
+		if col_flags_str == "10000001111111110111110001110" or col_flags_str == "10000001111111110111110001111":
+			self.available_cols.remove("PRI_jet_all_pt")
+			self.available_cols.remove("DER_pt_tot")
+
+		if col_flags_str == "10001111111111110111110001110" or col_flags_str == "10001111111111110111110001111":
+			self.available_cols.remove("PRI_jet_all_pt")
+
+		self.comparator_set = []
+		for col_pair in choose(self.available_cols, 2):
+			self.comparator_set.append(
+				self.make_comparator(
+					"%s (%s %s)" % (col_flags_str, col_pair[0], col_pair[1]),
+					dataframe,
+					col_pair
+				)
+			)
+
+	def make_comparator(self, name, dataframe, cols):
+		raise Exception("You should implement this in a subclass")
+
+	def classify(self, dataframe):
+		score_ratios = np.ones(dataframe.shape[0])
+		confidences = np.ones(dataframe.shape[0])
+		for comparator in self.comparator_set:
+			sub_score_ratios = comparator.classify(dataframe)
+			score_ratios = score_ratios * sub_score_ratios
+		lookup = np.array(["b", "s"])
+		return (
+			lookup[(score_ratios > 1.0).astype(np.int)],
+			confidences
+		)
+
+	def plot(self):
+		for comparator in self.comparator_set:
+			comparator.plot()
+
+class BspKdeComparatorSet(ComparatorSet):
+
+	def __init__(self, col_flags_str, dataframe, cols):
+		super(BspKdeComparatorSet, self).__init__(col_flags_str, dataframe, cols)
+
+	# override
+	def make_comparator(self, name, dataframe, cols):
+		return BspKdeComparator(name, dataframe, cols)
