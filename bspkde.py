@@ -64,23 +64,24 @@ class Partition(object):
 		self.normalizing_constant = normalizing_constant
 
 		self.children = None
+		self.density = self.calc_density()
 
 	def volume(self):
 		return np.prod(np.fabs(self.max_corner - self.min_corner))
 
-	def density(self):
+	def calc_density(self):
 		return self.npoints / (self.volume() * self.normalizing_constant)
 
 	def is_in_partition(self, points):
-		gt_min = points >= self.min_corner
-		lt_max = points < self.max_corner
+
+		is_in = points < self.max_corner
 
 		if np.any(self.include_max):
-			eq_max = self.include_max & (points == self.max_corner)
-			lt_max = lt_max | eq_max
+			is_in |= self.include_max & (points == self.max_corner)
 
-		return np.all(gt_min & lt_max, axis=1)
-		# return np.sum(gt_min & lt_max, axis=1) == points.shape[1]
+		is_in &= points >= self.min_corner
+
+		return np.all(is_in, axis=1)
 
 	def filter(self, points):
 		inside = self.is_in_partition(points)
@@ -154,7 +155,7 @@ class Partition(object):
 
 	def max_density(self):
 		if self.children is None:
-			return self.density()
+			return self.density
 		else:
 			return max([child.max_density() for child in self.children])
 
@@ -193,7 +194,7 @@ class Partition(object):
 					[self.max_corner[0], self.max_corner[1]],
 					[self.max_corner[0], self.min_corner[1]]
 				]],
-				[self.density()]
+				[self.density]
 			)
 		else:
 			result_polys = []
