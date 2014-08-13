@@ -77,11 +77,11 @@ class TestPartition(unittest.TestCase):
 		self.max_inner = np.array([1.0, 1.0])
 
 	def test_volume(self):
-		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p = Partition("foo", self.pts, self.min_outer, self.max_outer)
 		self.assertEqual(16.0, p.volume())
 
 	def test_density(self):
-		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p = Partition("foo", self.pts, self.min_outer, self.max_outer)
 		self.assertEqual(
 			p.density(),
 			1.0 / 16.0
@@ -94,14 +94,14 @@ class TestPartition(unittest.TestCase):
 			([False] * 8) # outer square
 		)
 
-		p = Partition(self.pts, self.min_inner, self.max_inner)
+		p = Partition("foo", self.pts, self.min_inner, self.max_inner)
 		in_partition = p.is_in_partition(self.pts)
 
 		assert_array_equal(expected, in_partition)
 
 	def test_filter(self):
 		expected = self.pts[:9] # origin + inner square
-		p = Partition(self.pts, self.min_inner, self.max_inner)
+		p = Partition("foo", self.pts, self.min_inner, self.max_inner)
 		filtered = p.filter(self.pts)
 		assert_array_equal(expected, filtered)
 
@@ -130,6 +130,7 @@ class TestPartition(unittest.TestCase):
 		expected = self.pts[expected]
 
 		p = Partition(
+			"foo",
 			self.pts,
 			self.min_inner, self.max_inner,
 			include_max=np.array([True, False])
@@ -184,7 +185,7 @@ class TestPartition(unittest.TestCase):
 			[True, True]
 		])
 
-		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p = Partition("foo", self.pts, self.min_outer, self.max_outer)
 		splits = p.split()
 
 		for i in range(4):
@@ -198,7 +199,7 @@ class TestPartition(unittest.TestCase):
 			)
 
 	def test_get_child_indices(self):
-		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p = Partition("foo", self.pts, self.min_outer, self.max_outer)
 		p.children = p.split() #simulated training
 
 		indices = p.get_child_indices(self.pts)
@@ -214,7 +215,7 @@ class TestPartition(unittest.TestCase):
 			)
 
 	def test_get_density_estimates(self):
-		p = Partition(self.pts, self.min_outer, self.max_outer)
+		p = Partition("foo", self.pts, self.min_outer, self.max_outer)
 		p.children = p.split() #simulated training
 
 		quadrant_counts = np.array([2, 4, 4, 7]).astype(np.float64)
