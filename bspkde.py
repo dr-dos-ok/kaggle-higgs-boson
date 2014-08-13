@@ -74,9 +74,13 @@ class Partition(object):
 	def is_in_partition(self, points):
 		gt_min = points >= self.min_corner
 		lt_max = points < self.max_corner
-		eq_max = self.include_max & (points == self.max_corner)
 
-		return np.all(gt_min & (lt_max | eq_max), axis=1)
+		if np.any(self.include_max):
+			eq_max = self.include_max & (points == self.max_corner)
+			lt_max = lt_max | eq_max
+
+		return np.all(gt_min & lt_max, axis=1)
+		# return np.sum(gt_min & lt_max, axis=1) == points.shape[1]
 
 	def filter(self, points):
 		inside = self.is_in_partition(points)
@@ -233,14 +237,16 @@ class KdeComparator(object):
 		self.target_cols = target_cols
 		self.name = name
 
+		just_the_data = dataframe[target_cols]
+
 		is_s = dataframe["Label"] == "s"
-		dataframe_s = dataframe[is_s]
-		self.kde_s = self.make_kde("signal", dataframe_s, dataframe)
+		dataframe_s = just_the_data[is_s]
+		self.kde_s = self.make_kde("signal", dataframe_s, just_the_data)
 		self.num_s = dataframe_s.shape[0]
 		self.prob_s = float(self.num_s) / dataframe.shape[0]
 
-		dataframe_b = dataframe[~is_s]
-		self.kde_b = self.make_kde("background", dataframe_b, dataframe)
+		dataframe_b = just_the_data[~is_s]
+		self.kde_b = self.make_kde("background", dataframe_b, just_the_data)
 		self.num_b = dataframe_b.shape[0]
 		self.prob_b = float(self.num_b) / dataframe.shape[0]
 
@@ -295,15 +301,15 @@ class BspKdeComparator(KdeComparator):
 
 	def make_kde(self, name, dataframe, superframe):
 
-		min_corner = np.amin(superframe[self.target_cols].values, axis=0)
-		max_corner = np.amax(superframe[self.target_cols].values, axis=0)
+		min_corner = np.amin(superframe.values, axis=0)
+		max_corner = np.amax(superframe.values, axis=0)
 
 		diff = max_corner - min_corner
 		margin = 0.05 * diff
 		max_corner = max_corner + margin
 		min_corner = min_corner - margin
 
-		p = Partition(name, dataframe[self.target_cols].values, min_corner, max_corner)
+		p = Partition(name, dataframe.values, min_corner, max_corner)
 		p.train()
 
 		return p
