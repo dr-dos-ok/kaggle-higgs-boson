@@ -344,6 +344,8 @@ class BspKdeComparator(KdeComparator):
 			self.kde_b.get_max_depth()
 		])
 
+COMPARATOR_CUTOFF = 1.0
+
 class ComparatorSet(object):
 	def __init__(self, col_flags_str, dataframe, cols):
 
@@ -384,7 +386,7 @@ class ComparatorSet(object):
 			score_ratios = score_ratios * sub_score_ratios
 		lookup = np.array(["b", "s"])
 		return (
-			lookup[(score_ratios > 1.0).astype(np.int)],
+			lookup[(score_ratios > COMPARATOR_CUTOFF).astype(np.int)],
 			confidences
 		)
 

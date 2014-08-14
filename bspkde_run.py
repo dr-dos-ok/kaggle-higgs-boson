@@ -71,12 +71,12 @@ for col_flags, group in traindata.groupby("row_col_flags"):
 		colflags.get_flagged_cols(col_flags, feature_cols)
 	)
 	writeDone()
-	print "	max depth: %d" % comparator.get_max_depth()
+	# print "	max depth: %d" % comparator.get_max_depth()
 
 write("classifying training rows")
 # profile.run("traindata = score_df(traindata)", "bspkde.profile")
+bspkde.COMPARATOR_CUTOFF = np.exp(-15.0) # empirically a good number
 traindata = score_df(traindata)
-writeDone()
 print "AMS:", ams(traindata["Class"], traindata)
 print "signal (actual): %2.2f%%" % (float(np.sum(traindata["Label"]=="s")) * 100.0 / np.sum(traindata.shape[0]))
 print "signal (predicted): %2.2f%%" % (float(np.sum(traindata["Class"]=="s")) * 100.0 / np.sum(traindata.shape[0]))
