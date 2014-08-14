@@ -56,7 +56,8 @@ class Partition(object):
 			include_max = np.ones(points.shape[1], dtype=np.bool)
 		self.include_max = include_max
 
-		self.points = self.filter(points)
+		# self.points = self.filter(points)
+		self.points = points
 		self.npoints, self.ndim = self.points.shape
 
 		if normalizing_constant is None:
@@ -102,11 +103,15 @@ class Partition(object):
 			for child in self.children:
 				child.train(maxdepth=maxdepth-1, min_pts=min_pts)
 
+		self.points = None # may help clear up memory?
+
 	def split(self):
 		midpoint = self.midpoint
 
+		child_indices = self.get_child_indices(self.points)
+
 		result = []
-		for index_tuple in truth_combinations(self.ndim):
+		for index_num, index_tuple in enumerate(truth_combinations(self.ndim)):
 			sub_min = np.empty(self.ndim)
 			sub_max = np.empty(self.ndim)
 			include_max = np.zeros(self.ndim, dtype=np.bool)
@@ -120,17 +125,18 @@ class Partition(object):
 					sub_max[dim_index] = midpoint[dim_index]
 			sub_partition = Partition(
 				"(child)",
-				self.points,
+				self.points[child_indices == index_num],
 				sub_min, sub_max,
 				include_max=include_max,
 				normalizing_constant = self.normalizing_constant
 			)
 			result.append(sub_partition)
+
 		return result
 
-	def get_density_estimates(self, pts):
+	def get_density_estimates1(self, pts):
 		if self.children is None:
-			density = self.density()
+			density = self.density
 			return np.array([density] * pts.shape[0])
 		else:
 			pt_child_indexes = self.get_child_indices(pts)
@@ -142,16 +148,33 @@ class Partition(object):
 				result[return_indices] = sub_densities
 			return result
 
-	def get_child_indices(self, pts):
-		midpoint = self.midpoint
+	def get_max_depth(self):
+		if self.children is None:
+			return 1
+		else:
+			return max([child.get_max_depth() for child in self.children]) + 1
 
-		ndim = midpoint.shape[0]
-		results = np.zeros(pts.shape[0], dtype=np.int32)
-		for dim_num in range(ndim):
-			dim_index = ndim - dim_num - 1
-			addend = 1<<dim_num # 1<<x == 2**x
-			results[pts[:,dim_index] >= midpoint[dim_index]] += addend
-		return results
+	def get_density_estimates(self, pts):
+
+		result = np.empty(pts.shape[0], dtype=np.float64)
+		result_indices = np.arange(pts.shape[0])
+		self._get_density_estimates(pts, result, result_indices)
+		return result
+
+	def _get_density_estimates(self, pts, result, result_indices):
+		if self.children is None:
+			result[result_indices] = self.density
+		else:
+			pt_child_indexes = self.get_child_indices(pts)
+			# sort_indices = np.argsort(pt_child_indexes)
+			# pt_child_indexes = pt_child_indexes[sort_indices]
+			for child_index, child in enumerate(self.children):
+				mapped_to_child = (pt_child_indexes == child_index)
+				child._get_density_estimates(pts[mapped_to_child], result, result_indices[mapped_to_child])
+
+	def get_child_indices(self, pts):
+		powers = 2**np.arange(self.ndim-1, -1, step=-1) # e.g. [8, 4, 2, 1] for self.ndim==4
+		return np.sum((pts >= self.midpoint) * powers, axis=1)
 
 	def max_density(self):
 		if self.children is None:
@@ -172,7 +195,7 @@ class Partition(object):
 		return (self.min_corner[1], self.max_corner[1])
 
 	def title(self):
-		return "%s (%d leafs, %d pts)" % (self.name, self.count_leaf_children(), self.points.shape[0])
+		return "%s (%d leafs, %d pts)" % (self.name, self.count_leaf_children(), self.npoints)
 
 	def plot(self):
 		pyplot.clf()
@@ -220,7 +243,7 @@ class Partition(object):
 			array=densities,
 			cmap=mpl.cm.jet,
 			norm=norm,
-			edgecolors="none"
+			edgecolors="white"
 			# linewidths=0.5
 		)
 
@@ -315,6 +338,12 @@ class BspKdeComparator(KdeComparator):
 
 		return p
 
+	def get_max_depth(self):
+		return max([
+			self.kde_s.get_max_depth(),
+			self.kde_b.get_max_depth()
+		])
+
 class ComparatorSet(object):
 	def __init__(self, col_flags_str, dataframe, cols):
 
@@ -371,3 +400,6 @@ class BspKdeComparatorSet(ComparatorSet):
 	# override
 	def make_comparator(self, name, dataframe, cols):
 		return BspKdeComparator(name, dataframe, cols)
+
+	def get_max_depth(self):
+		return max([comparator.get_max_depth() for comparator in self.comparator_set])

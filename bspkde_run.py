@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 from bkputils import *
 
-import cProfile as profile
+# import cProfile as profile
 
 import bspkde, time, colflags, zipfile
 
 global_start = time.time()
 
-TRAIN_LIMIT = 30000
+TRAIN_LIMIT = None
 TEST_LIMIT = None
 CSV_OUTPUT_FILE = "bspkde.csv"
 ZIP_OUTPUT_FILE = CSV_OUTPUT_FILE + ".zip"
@@ -61,22 +61,20 @@ print
 
 comparator_set_lookup = {}
 for col_flags, group in traindata.groupby("row_col_flags"):
-	if col_flags != 2**29-1:
-		continue
+	# if col_flags != 2**29-1:
+	# 	continue
 	col_flag_str = "{0:b}".format(col_flags)
 	write("building BspKdeComparatorSet for %s" % col_flag_str)
-	def make_comparator():
-		return bspkde.BspKdeComparatorSet(
-			col_flag_str,
-			group,
-			colflags.get_flagged_cols(col_flags, feature_cols)
-		)
-	comparator_set_lookup[col_flags] = comparator = profile.run("make_comparator()", "bspkde.profile")
+	comparator_set_lookup[col_flags] = comparator = bspkde.BspKdeComparatorSet(
+		col_flag_str,
+		group,
+		colflags.get_flagged_cols(col_flags, feature_cols)
+	)
 	writeDone()
-
-exit()
+	print "	max depth: %d" % comparator.get_max_depth()
 
 write("classifying training rows")
+# profile.run("traindata = score_df(traindata)", "bspkde.profile")
 traindata = score_df(traindata)
 writeDone()
 print "AMS:", ams(traindata["Class"], traindata)
@@ -88,6 +86,7 @@ testdata = loadTestData(TEST_LIMIT)
 writeDone()
 
 write("classifying test data")
+# profile.run("testdata = score_df(testdata)")
 testdata = score_df(testdata)
 writeDone()
 
