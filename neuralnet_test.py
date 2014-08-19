@@ -111,7 +111,7 @@ class TestNeuron(unittest.TestCase):
 		input_bias = neurons.BiasNeuron()
 		hidden_layer = [neurons.LogisticNeuron() for i in range(3)]
 		hidden_bias = neurons.BiasNeuron()
-		output_layer = [neurons.OutputNeuron() for i in range(1)]
+		output_layer = [neurons.SquaredErrorOutputNeuron() for i in range(1)]
 
 		weights = [
 			1.0 / np.array([

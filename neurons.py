@@ -1,7 +1,25 @@
 """
-Utility classes to implement a feedforward neural network for testing purposes.
-These classes should be easier to implement and check the validity of, but
-will be too slow for practical machine learning.
+Utility classes to implement a feedforward neural network.
+
+These classes are not intended to do actual work; they will
+be much too slow and memory intensive because each neuron and
+each weight is implemented as its own class instance. Instead, these
+classes are intended to compute values for various small test
+cases, so that we can validate the results of the "real" 
+implementation against these (the "real" implementation will
+probably be the neuralnet.py package I'm currently implementing
+in numpy).
+
+Writing these classes should hopefully add more error-resistance
+for 2 reasons:
+	1 - I find it easier to think about the neuron and weight
+	math on a one-by-one basis instead of formulating large
+	chunks of math as a single matrix multiplication
+	2 - It is unlikely that I would make the same implementation
+	error in 2 different places, because these are 2 *very* different
+	implementations. Any errors that occur in both implementations
+	are likely due to my own misunderstandings and not due to
+	random implementation bugs.
 """
 
 import math
@@ -61,8 +79,21 @@ class InputNeuron(object):
 			result += connection.weight * connection.upper_neuron.derror_by_dinput
 		self.derror_by_doutput = result
 
-class OutputNeuron(LogisticNeuron):
-	pass
+class SquaredErrorOutputNeuron(LogisticNeuron):
+	def __init__(self):
+		super(SquaredErrorOutputNeuron, self).__init__()
+		self.upper_connections = None
+
+	def set_expected_value(self, value):
+		self.expected_value = value
+
+	#override
+	def calc_derror_by_doutput(self):
+		self.derror_by_doutput = self.output - self.expected_value
+
+	#override
+	def add_upper_connection(self):
+		raise Exception("You probably shouldn't do this from an output neuron")
 
 class BiasNeuron(object):
 
@@ -85,32 +116,14 @@ class BiasNeuron(object):
 	def backprop(self):
 		self.calc_derror_by_doutput()
 
-class SquaredErrorQuasiNeuron(object):
-	def __init__(self, expected_value=None):
-		self.lower_connection = None
-		self.expected_value = expected_value
-
-	def set_expected_value(self, value):
-		self.expected_value = value
-
-	def add_lower_connection(self, connection):
-		if self.lower_connection is None:
-			self.lower_connection = connection
-		else:
-			raise Exception("You can only add one lower connection to an Error Neuron")
-
-	def calc_derror_by_dinput(self):
-		input_ = self.lower_connection.lower_neuron.output
-		self.derror_by_doutput = input_ - self.expected_value
-
-	def backprop(self):
-		self.calc_derror_by_dinput()
-
 class NeuronConnection(object):
 	def __init__(self, lower_neuron, upper_neuron, weight):
 		self.lower_neuron = lower_neuron
 		self.upper_neuron = upper_neuron
 		self.weight = weight
+
+	def calc_derror_by_dweight(self):
+		self.derror_by_dweight = self.weight * self.upper_neuron.derror_by_dinput
 
 def make_connection(lower_neuron, upper_neuron, weight):
 	conn = NeuronConnection(lower_neuron, upper_neuron, weight)
