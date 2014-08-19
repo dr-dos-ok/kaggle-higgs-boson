@@ -43,7 +43,7 @@ class FeedForwardNet(object):
 	def forward(self, inputs, outputs=NORMAL_OUTPUTS):
 		
 		#sum of inputs (first layer will be ignored)
-		layer_activations = [
+		layer_inputs = [
 			np.empty(size)
 			for size in self.layer_sizes
 		]
@@ -58,28 +58,47 @@ class FeedForwardNet(object):
 		layer_outputs[0] = inputs
 
 		for prev_layer_index, layer_index in adjacent_pairs(range(self.nlayers)):
-			layer_activations[layer_index] = np.dot(
+			layer_inputs[layer_index] = np.dot(
 				np.concatenate([
 					layer_outputs[prev_layer_index],
 					ONE # bias unit
 				]).transpose(),
 				self.weights[prev_layer_index]
 			)
-			layer_outputs[layer_index] = self.sigmoid(layer_activations[layer_index])
+			layer_outputs[layer_index] = self.sigmoid(layer_inputs[layer_index])
 
 		if outputs == NORMAL_OUTPUTS:
 			return layer_outputs[-1]
 		elif outputs == DEBUGGING_OUTPUTS:
-			return (layer_outputs, layer_activations)
+			return (layer_outputs, layer_inputs)
 		elif outputs == ALL_LAYER_OUTPUTS:
 			return layer_outputs
 		else:
 			raise Exception("Unrecognized value of 'outputs' in FeedForwardNet.forward()")
 
-	def get_partial_derivs(self, test_case):
+	def get_partial_derivs(self, test_case_inputs, test_case_actuals):
 		"""backprop implementation"""
 
+		layer_outputs = self.forward(test_case, outputs=ALL_LAYER_OUTPUTS)
 
+		layer_output_derivs = [
+			np.empty(size)
+			for size in self.layer_sizes
+		]
+
+		layer_input_derivs = [
+			np.empty(size)
+			for size in self.layer_sizes
+		]
 
 		# squared error = (1/2) * sum((expected - actual)**2)
 		# squared err derive = actual - expected
+		layer_output_derivs[-1][:] = layer_outputs[-1] - test_case_actuals
+
+		for layer_index in range(self.nlayers-1, 0, -1):
+			y = layer_outputs[layer_index]
+			layer_input_derivs[layer_index] = y * (1.0 - y) * layer_output_derivs[layer_index]
+			layer_output_derivs[layer_index-1] = np.dot(
+				self.weights[layer_index-1].T,
+				layer_input_derivs[layer_index]
+			).T
