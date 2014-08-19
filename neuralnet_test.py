@@ -112,7 +112,6 @@ class TestNeuron(unittest.TestCase):
 		hidden_layer = [neurons.LogisticNeuron() for i in range(3)]
 		hidden_bias = neurons.BiasNeuron()
 		output_layer = [neurons.OutputNeuron() for i in range(1)]
-		error_layer = [neurons.SquaredErrorQuasiNeuron() for i in range(1)]
 
 		weights = [
 			1.0 / np.array([
@@ -140,9 +139,6 @@ class TestNeuron(unittest.TestCase):
 			for hidden_index, hidden_neuron in enumerate(hidden_layer):
 				neurons.make_connection(hidden_neuron, output_neuron, weights[1][hidden_index][output_index])
 			neurons.make_connection(hidden_bias, output_neuron, weights[1][-1][output_index])
-
-		for index, output_neuron, error_neuron in zip(range(len(output_layer)), output_layer, error_layer):
-			neurons.make_connection(output_neuron, error_neuron, 1.0)
 
 		inputs = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
 		inputs_with_bias = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 1.0])
