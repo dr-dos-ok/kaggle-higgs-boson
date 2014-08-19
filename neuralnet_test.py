@@ -62,31 +62,24 @@ class TestFeedForwardNet(unittest.TestCase):
 		]
 		expected_outputs = [
 			inputs_with_bias,
-			np.concatenate([
-				expit(np.dot(inputs_with_bias.transpose(), weights[0])),
-				np.ones(1)
-			]),
-			np.concatenate([
-				expit(
-					np.dot(
-						np.concatenate([
-							expit(np.dot(inputs_with_bias.transpose(), weights[0])),
-							np.ones(1)
-						]).transpose(),
-						weights[1]
-					)
-				),
-				np.ones(1)
-			])
+			expit(np.dot(inputs_with_bias.transpose(), weights[0])),
+			expit(
+				np.dot(
+					np.concatenate([
+						expit(np.dot(inputs_with_bias.transpose(), weights[0])),
+						np.ones(1)
+					]).transpose(),
+					weights[1]
+				)
+			)
 		]
 
-		outputs, outputs_all, activations = net.forward(inputs, return_all=True)
+		outputs, activations = net.forward(inputs, outputs=nn.DEBUGGING_OUTPUTS)
 
 		assert_array_equal(
 			inputs,
-			outputs_all[0][:-1]
+			outputs[0]
 		)
-		self.assertEqual(1.0, outputs_all[0][-1])
 
 		for i in range(1, len(weights)+1):
 			assert_array_equal(
@@ -95,7 +88,7 @@ class TestFeedForwardNet(unittest.TestCase):
 			)
 			assert_array_equal(
 				expected_outputs[i],
-				outputs_all[i]
+				outputs[i]
 			)
 
 if __name__ == "__main__":
