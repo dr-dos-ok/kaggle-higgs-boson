@@ -17,7 +17,7 @@ NORMAL_OUTPUTS = 0
 DEBUGGING_OUTPUTS = 1
 ALL_LAYER_OUTPUTS = 2
 
-ONE = np.ones(1)
+_ONE = np.ones(1)
 
 class FeedForwardNet(object):
 
@@ -34,11 +34,14 @@ class FeedForwardNet(object):
 		self.layer_sizes = np.array(layer_sizes)
 		self.nlayers = len(layer_sizes)
 
-		#+1 for bias
 		self.weights = [
-			np.random.random((top, bottom+1))
+			np.random.random((top, bottom))
 			for bottom, top in adjacent_pairs(layer_sizes)
 		]
+		self.bias_weights = ([None] + [
+			np.random.random(layer_size)
+			for layer_size in self.layer_sizes[1:]
+		])
 
 	def forward(self, inputs, outputs=NORMAL_OUTPUTS):
 		
@@ -55,16 +58,14 @@ class FeedForwardNet(object):
 		]
 
 		#set input as output of first layer
-		layer_outputs[0] = inputs
+		layer_outputs[0][:] = inputs
 
 		for prev_layer_index, layer_index in adjacent_pairs(range(self.nlayers)):
 			layer_inputs[layer_index] = np.dot(
-				np.concatenate([
-					layer_outputs[prev_layer_index],
-					ONE # bias unit
-				]).transpose(),
+				layer_outputs[prev_layer_index].T,
 				self.weights[prev_layer_index]
 			)
+			layer_inputs[layer_index] += self.bias_weights[layer_index]
 			layer_outputs[layer_index] = self.sigmoid(layer_inputs[layer_index])
 
 		if outputs == NORMAL_OUTPUTS:

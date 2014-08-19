@@ -36,43 +36,32 @@ class TestFeedForwardNet(unittest.TestCase):
 				[4.0, 5.0, 6.0],
 				[7.0, 8.0, 9.0],
 				[10.0, 11.0, 12.0],
-				[13.0, 14.0, 15.0],
-				[16.0, 17.0, 18.0]
+				[13.0, 14.0, 15.0]
 			]),
 			1.0 / np.array([
 				[1.0],
 				[2.0],
-				[3.0],
-				[4.0]
+				[3.0]
 			])
+		]
+		bias_weights = net.bias_weights = [
+			None,
+			np.array([16.0, 17.0, 18.0]),
+			np.array([4.0])
 		]
 
 		inputs = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-		inputs_with_bias = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 1.0])
 
 		expected_activations = [
-			np.empty(6),
-			np.dot(inputs_with_bias.transpose(), weights[0]),
+			np.empty(0),
+			np.dot(inputs.transpose(), weights[0]) + bias_weights[1],
 			np.dot(
-				np.concatenate([
-					expit(np.dot(inputs_with_bias.transpose(), weights[0])),
-					np.ones(1)
-				]).transpose(),
+				expit(np.dot(inputs.transpose(), weights[0]) + bias_weights[1]).transpose(),
 				weights[1]
-			)
+			) + bias_weights[2]
 		]
 		expected_outputs = [
-			inputs_with_bias,
-			expit(np.dot(inputs_with_bias.transpose(), weights[0])),
-			expit(
-				np.dot(
-					np.concatenate([
-						expit(np.dot(inputs_with_bias.transpose(), weights[0])),
-						np.ones(1)
-					]).transpose(),
-					weights[1]
-				)
-			)
+			expit(layer_inputs) for layer_inputs in expected_activations
 		]
 
 		outputs, activations = net.forward(inputs, outputs=nn.DEBUGGING_OUTPUTS)
@@ -103,7 +92,7 @@ class TestFeedForwardNet(unittest.TestCase):
 			])
 		]
 
-class TestNeuron(unittest.TestCase):
+class TestNeurons(unittest.TestCase):
 	def test_neuron(self):
 		"""same net as TestFeedForwardNet.test_forward()"""
 
