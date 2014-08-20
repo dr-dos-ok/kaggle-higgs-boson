@@ -13,6 +13,13 @@ def logistic_deriv(x):
 	log = logistic(x)
 	return log * (1 - log)
 
+def squared_error(actuals, expected):
+	diffs = actuals - expected
+	return (
+		0.5 * np.sum(diffs * diffs), # error
+		diffs # derror_by_doutput
+	)
+
 NORMAL_OUTPUTS = 0
 DEBUGGING_OUTPUTS = 1
 ALL_LAYER_OUTPUTS = 2
@@ -25,11 +32,13 @@ class FeedForwardNet(object):
 		self,
 		layer_sizes,
 		alpha=0.1,
-		sigmoid_fn_pair=(logistic, logistic_deriv)
+		sigmoid_fn_pair=(logistic, logistic_deriv),
+		err_fn=squared_error
 	):
 		self.alpha = 0.1
 
 		self.sigmoid, self.sigmoid_deriv = sigmoid_fn_pair
+		self.err_fn = squared_error
 
 		self.layer_sizes = np.array(layer_sizes)
 		self.nlayers = len(layer_sizes)
@@ -105,9 +114,8 @@ class FeedForwardNet(object):
 			for bottom, top in adjacent_pairs(self.layer_sizes)
 		]
 
-		# squared error = (1/2) * sum((expected - actual)**2)
-		# squared err deriv = actual - expected
-		layer_output_derivs[-1][:] = layer_outputs[-1] - test_case_actuals
+		err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_actuals)
+		layer_output_derivs[-1][:] = derror_by_doutput
 
 		for layer_index in range(self.nlayers-1, 0, -1):
 			y = layer_outputs[layer_index]
