@@ -20,9 +20,35 @@ def squared_error(actuals, expected):
 		diffs # derror_by_doutput
 	)
 
+def normalize_vector(vec):
+	sq = vec * vec
+	return vec / np.sqrt(np.sum(sq))
+
+def flatten_lists_of_arrays(*lists):
+	total_size = sum([sum([nda.size for nda in list_]) for list_ in lists])
+
+	result = np.empty(total_size)
+	start = 0
+	for list_ in lists:
+		for ndarray in list_:
+			stop = start + ndarray.size
+			result[start:stop] = ndarray.ravel()
+			start = stop
+	return result
+
+def unflatten_to_lists_of_arrays(flattened, *outputs):
+	start = 0
+	for outlist in outputs:
+		for ndarray in outlist:
+			stop = start + ndarray.size
+			ndarray.ravel()[:] = flattened[start:stop]
+			start = stop
+
 NORMAL_OUTPUTS = 0
 DEBUGGING_OUTPUTS = 1
 ALL_LAYER_OUTPUTS = 2
+
+FLATTENED_OUTPUTS = 3
 
 _ONE = np.ones(1)
 
@@ -44,7 +70,7 @@ class FeedForwardNet(object):
 		self.nlayers = len(layer_sizes)
 
 		self.weights = [
-			np.random.random((top, bottom))
+			np.random.random((bottom, top))
 			for bottom, top in adjacent_pairs(layer_sizes)
 		]
 		self.bias_weights = [None] + [
@@ -94,7 +120,13 @@ class FeedForwardNet(object):
 		else:
 			raise Exception("Unrecognized value of 'outputs' in FeedForwardNet.forward()")
 
-	def get_partial_derivs(self, test_case_inputs, test_case_actuals):
+	def get_flattened_weights(self):
+		return flatten_lists_of_arrays(self.weights, self.bias_weights[1:])
+
+	def set_flattened_weights(self, flattened_weights):
+		unflatten_to_lists_of_arrays(flattened_weights, self.weights, self.bias_weights[1:])
+
+	def get_partial_derivs(self, test_case_inputs, test_case_actuals, outputs=NORMAL_OUTPUTS):
 		"""backprop implementation"""
 
 		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
@@ -126,13 +158,21 @@ class FeedForwardNet(object):
 				layer_input_derivs[layer_index-1].T
 			)
 
-		return (
-			[
-				weights * layer_input_derivs[index]
-				for index, weights in enumerate(self.weights)
-			],
-			[None] + [
-				weights * layer_input_derivs[index]
-				for index, weights in enumerate(self.bias_weights[1:])
-			]
-		)
+		weight_derivs = [
+			weights * layer_input_derivs[index]
+			for index, weights in enumerate(self.weights)
+		]
+
+		#I usually like to keep a None as the first element so that the indices match
+		#up, and to indicate that there are no biases on the first/input layer. However,
+		#leaving out the None for a moment makes certain things easier in a sec
+		#(flatten_lists_of_arrays doesn't work with None's)
+		raw_bias_weight_derivs = [
+			weights * layer_input_derivs[index]
+			for index, weights in enumerate(self.bias_weights[1:])
+		]
+
+		if outputs == NORMAL_OUTPUTS:
+			return (weight_derivs, [None] + raw_bias_weight_derivs)
+		elif outputs == FLATTENED_OUTPUTS:
+			return flatten_lists_of_arrays(weight_derivs, raw_bias_weight_derivs)

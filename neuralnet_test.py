@@ -26,6 +26,60 @@ class TestFunctions(unittest.TestCase):
 		actual = nn.logistic_deriv(inputs)
 		assert_array_equal(expected, actual)
 
+	def test_flatten_lists_of_arrays(self):
+		l1 = [
+			np.array([1,2,3]),
+			np.array([
+				[4,5],
+				[6,7]
+			]),
+			np.array([8,9,10])
+		]
+		l2 = [
+			np.array([10,20,30]),
+			np.array([40,50,60,70]),
+			np.array([80,90,100])
+		]
+		expected = np.array([1,2,3,4,5,6,7,8,9,10, 10,20,30,40,50,60,70,80,90,100])
+		actual = nn.flatten_lists_of_arrays(l1, l2)
+		assert_array_equal(actual, expected)
+
+	def test_unflatten_to_lists_of_arrays(self):
+
+		flattened = np.array([1,2,3,4,5,6,7,8,9,10, 10,20,30,40,50,60,70,80,90,100])
+
+		expected1 = [
+			np.array([1,2,3]),
+			np.array([
+				[4,5],
+				[6,7]
+			]),
+			np.array([8,9,10])
+		]
+
+		expected2 = [
+			np.array([10,20,30]),
+			np.array([40,50,60,70]),
+			np.array([80,90,100])
+		]
+
+		outlist1 = [
+			np.zeros(3),
+			np.zeros((2,2)),
+			np.zeros(3)
+		]
+		outlist2 = [
+			np.zeros(3),
+			np.zeros(4),
+			np.zeros(3)
+		]
+
+		nn.unflatten_to_lists_of_arrays(flattened, outlist1, outlist2)
+
+		for index in range(len(expected1)):
+			assert_array_equal(expected1[index], outlist1[index])
+			assert_array_equal(expected2[index], outlist2[index])
+
 class TestFeedForwardNet(unittest.TestCase):
 
 	def test_forward(self):
@@ -80,6 +134,70 @@ class TestFeedForwardNet(unittest.TestCase):
 				expected_outputs[i],
 				outputs[i]
 			)
+
+	def test_get_flattened_weights(self):
+		net = nn.FeedForwardNet([2,3,2])
+		net.weights = [
+			np.array([
+				[0.1, 0.2, 0.3],
+				[-0.1, -0.2, -0.3]
+			]),
+			np.array([
+				[0.5, 0.5],
+				[0.5, -0.5],
+				[-0.5, 0.5]
+			])
+		]
+
+		net.bias_weights = [
+			None,
+			np.array([0.3, 0.2, 0.1]),
+			np.array([-0.5, -0.5])
+		]
+
+		expected = np.array([
+			0.1, 0.2, 0.3, -0.1, -0.2, -0.3,
+			0.5, 0.5, 0.5, -0.5, -0.5, 0.5,
+			0.3, 0.2, 0.1, -0.5, -0.5
+		])
+		flattened = net.get_flattened_weights()
+		assert_array_equal(flattened, expected)
+
+	def test_set_flattened_weights(self):
+		net = nn.FeedForwardNet([2,3,2])
+
+		net.set_flattened_weights(np.array([
+			0.1, 0.2, 0.3, -0.1, -0.2, -0.3,
+			0.5, 0.5, 0.5, -0.5, -0.5, 0.5,
+			0.3, 0.2, 0.1, -0.5, -0.5
+		]))
+
+		expected_weights = [
+			np.array([
+				[0.1, 0.2, 0.3],
+				[-0.1, -0.2, -0.3]
+			]),
+			np.array([
+				[0.5, 0.5],
+				[0.5, -0.5],
+				[-0.5, 0.5]
+			])
+		]
+
+		expected_bias_weights = [
+			None,
+			np.array([0.3, 0.2, 0.1]),
+			np.array([-0.5, -0.5])
+		]
+
+		for index in range(len(expected_weights)):
+			assert_array_equal(expected_weights[index], net.weights[index])
+
+		for index in range(len(expected_bias_weights)):
+			if expected_bias_weights[index] is None:
+				self.assertEqual(expected_bias_weights[index], net.bias_weights[index])
+			else:
+				assert_array_equal(expected_bias_weights[index], net.bias_weights[index])
 
 	def test_get_partial_derivs(self):
 		layer_sizes = [2, 3, 2]
