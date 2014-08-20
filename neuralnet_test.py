@@ -161,6 +161,12 @@ class TestFeedForwardNet(unittest.TestCase):
 			])
 		]
 
+		expected_bias_weight_derivs = [
+			None,
+			np.array([weight.derror_by_dweight for weight in input_bias.upper_connections]),
+			np.array([weight.derror_by_dweight for weight in hidden_bias.upper_connections])
+		]
+
 		###
 		# make net that we're actually going to test with neuralnet/nn package
 		###
@@ -169,15 +175,27 @@ class TestFeedForwardNet(unittest.TestCase):
 		net.bias_weights = bias_weights
 
 		#forward & backward pass all in one go
-		partial_derivs = net.get_partial_derivs(inputs, expected_outputs)
+		weight_partial_derivs, bias_weight_partial_derivs = net.get_partial_derivs(inputs, expected_outputs)
 
 		assert_almost_equal(
 			expected_weight_derivs[0],
-			partial_derivs[0]
+			weight_partial_derivs[0]
 		)
 		assert_almost_equal(
 			expected_weight_derivs[1],
-			partial_derivs[1]
+			weight_partial_derivs[1]
+		)
+
+		#both should be None
+		self.assertEqual(expected_bias_weight_derivs[0], bias_weight_partial_derivs[0])
+
+		assert_almost_equal(
+			expected_bias_weight_derivs[1],
+			bias_weight_partial_derivs[1]
+		)
+		assert_almost_equal(
+			expected_bias_weight_derivs[2],
+			bias_weight_partial_derivs[2]
 		)
 
 class TestNeurons(unittest.TestCase):

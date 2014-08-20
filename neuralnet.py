@@ -47,10 +47,10 @@ class FeedForwardNet(object):
 			np.random.random((top, bottom))
 			for bottom, top in adjacent_pairs(layer_sizes)
 		]
-		self.bias_weights = ([None] + [
+		self.bias_weights = [None] + [
 			np.random.random(layer_size)
 			for layer_size in self.layer_sizes[1:]
-		])
+		]
 
 	def forward(self, inputs, outputs=NORMAL_OUTPUTS):
 		
@@ -126,7 +126,13 @@ class FeedForwardNet(object):
 				layer_input_derivs[layer_index-1].T
 			)
 
-		return [
-			weights * layer_input_derivs[index]
-			for index, weights in enumerate(self.weights)
-		]
+		return (
+			[
+				weights * layer_input_derivs[index]
+				for index, weights in enumerate(self.weights)
+			],
+			[None] + [
+				weights * layer_input_derivs[index]
+				for index, weights in enumerate(self.bias_weights[1:])
+			]
+		)
