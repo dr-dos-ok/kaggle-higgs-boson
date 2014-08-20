@@ -82,15 +82,103 @@ class TestFeedForwardNet(unittest.TestCase):
 			)
 
 	def test_get_partial_derivs(self):
-		net = nn.FeedForwardNet([2, 3, 2])
-		weights = net.weights = [
+		layer_sizes = [2, 3, 2]
+		weights = [
 			np.array([
-				[0.1, 0.2],
-				[-0.1, -0.2],
-				[0.2, 0.1],
-				[0.0, 0.0]
+				[0.1, 0.2, 0.3],
+				[-0.1, -0.2, -0.3]
+			]),
+			np.array([
+				[0.5, 0.5],
+				[0.5, -0.5],
+				[-0.5, 0.5]
 			])
 		]
+		bias_weights = [
+			None,
+			np.array([0.3, 0.2, 0.1]),
+			np.array([-0.5, -0.5])
+		]
+		inputs = np.array([1.0, -1.0])
+		expected_outputs = np.array([1.0, 0.0])
+
+		###
+		# Make validation net with neurons package
+		###
+
+		input_layer = [neurons.InputNeuron() for i in range(layer_sizes[0])]
+		input_bias = neurons.BiasNeuron()
+		hidden_layer = [neurons.LogisticNeuron() for i in range(layer_sizes[1])]
+		hidden_bias = neurons.BiasNeuron()
+		output_layer = [neurons.SquaredErrorOutputNeuron() for i in range(layer_sizes[2])]
+
+		for hidden_index, hidden_neuron in enumerate(hidden_layer):
+			for input_index, input_neuron in enumerate(input_layer):
+				neurons.make_connection(input_neuron, hidden_neuron, weights[0][input_index][hidden_index])
+			neurons.make_connection(input_bias, hidden_neuron, bias_weights[1][hidden_index])
+
+		for output_index, output_neuron in enumerate(output_layer):
+			for hidden_index, hidden_neuron in enumerate(hidden_layer):
+				neurons.make_connection(hidden_neuron, output_neuron, weights[1][hidden_index][output_index])
+			neurons.make_connection(hidden_bias, output_neuron, bias_weights[2][output_index])
+
+		for index, input_neuron in enumerate(input_layer):
+			input_neuron.set_value(inputs[index])
+
+		#forward pass
+		for hidden_neuron in hidden_layer:
+			hidden_neuron.forward_pass()
+		for output_neuron in output_layer:
+			output_neuron.forward_pass()
+
+		#backprop
+
+		for output_index, output_neuron in enumerate(output_layer):
+			output_neuron.set_expected_value(expected_outputs[output_index])
+		for output_neuron in output_layer:
+			output_neuron.backprop()
+		for hidden_neuron in hidden_layer:
+			hidden_neuron.backprop()
+		hidden_bias.backprop()
+
+		#calc weight partial derivatives
+		for output_neuron in output_layer:
+			for weight in output_neuron.lower_connections:
+				weight.calc_derror_by_dweight()
+		for hidden_neuron in hidden_layer:
+			for weight in hidden_neuron.lower_connections:
+				weight.calc_derror_by_dweight()
+
+		#now go grab all of the calculated values
+		expected_weight_derivs = [
+			np.array([
+				[weight.derror_by_dweight for weight in input_neuron.upper_connections]
+				for input_neuron in input_layer
+			]),
+			np.array([
+				[weight.derror_by_dweight for weight in hidden_neuron.upper_connections]
+				for hidden_neuron in hidden_layer
+			])
+		]
+
+		###
+		# make net that we're actually going to test with neuralnet/nn package
+		###
+		net = nn.FeedForwardNet(layer_sizes)
+		net.weights = weights
+		net.bias_weights = bias_weights
+
+		#forward & backward pass all in one go
+		partial_derivs = net.get_partial_derivs(inputs, expected_outputs)
+
+		assert_almost_equal(
+			expected_weight_derivs[0],
+			partial_derivs[0]
+		)
+		assert_almost_equal(
+			expected_weight_derivs[1],
+			partial_derivs[1]
+		)
 
 class TestNeurons(unittest.TestCase):
 	def test_neuron(self):

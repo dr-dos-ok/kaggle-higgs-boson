@@ -65,7 +65,15 @@ class FeedForwardNet(object):
 				layer_outputs[prev_layer_index].T,
 				self.weights[prev_layer_index]
 			)
-			layer_inputs[layer_index] += self.bias_weights[layer_index]
+
+			try:
+				layer_inputs[layer_index] += self.bias_weights[layer_index]
+			except:
+				print
+				print layer_index
+				print self.bias_weights[layer_index]
+				print self.bias_weights
+				exit()
 			layer_outputs[layer_index] = self.sigmoid(layer_inputs[layer_index])
 
 		if outputs == NORMAL_OUTPUTS:
@@ -80,7 +88,7 @@ class FeedForwardNet(object):
 	def get_partial_derivs(self, test_case_inputs, test_case_actuals):
 		"""backprop implementation"""
 
-		layer_outputs = self.forward(test_case, outputs=ALL_LAYER_OUTPUTS)
+		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
 
 		layer_output_derivs = [
 			np.empty(size)
@@ -89,17 +97,28 @@ class FeedForwardNet(object):
 
 		layer_input_derivs = [
 			np.empty(size)
-			for size in self.layer_sizes
+			for size in self.layer_sizes[1:]
+		]
+
+		weight_derivs = [
+			np.empty((top, bottom+1), dtype=np.float64)
+			for bottom, top in adjacent_pairs(self.layer_sizes)
 		]
 
 		# squared error = (1/2) * sum((expected - actual)**2)
-		# squared err derive = actual - expected
+		# squared err deriv = actual - expected
 		layer_output_derivs[-1][:] = layer_outputs[-1] - test_case_actuals
 
 		for layer_index in range(self.nlayers-1, 0, -1):
 			y = layer_outputs[layer_index]
-			layer_input_derivs[layer_index] = y * (1.0 - y) * layer_output_derivs[layer_index]
+			layer_input_derivs[layer_index-1] = y * (1.0 - y) * layer_output_derivs[layer_index]
+
 			layer_output_derivs[layer_index-1] = np.dot(
-				self.weights[layer_index-1].T,
-				layer_input_derivs[layer_index]
-			).T
+				self.weights[layer_index-1],
+				layer_input_derivs[layer_index-1].T
+			)
+
+		return [
+			weights * layer_input_derivs[index]
+			for index, weights in enumerate(self.weights)
+		]
