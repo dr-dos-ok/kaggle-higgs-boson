@@ -2,18 +2,60 @@ import numpy as np
 import scipy.special
 
 def adjacent_pairs(a):
+	"""
+	Given a list 'a', return all adjacent pairs of items
+	in the list, starting at (a[0], a[1]) and continuing
+	on. 'a' must contain at least 2 items.
+
+	This method is a generator method.
+
+	Example: adjacent_pairs([1,2,3]) yields two tuples: (1, 2) and (2, 3)
+	"""
 	for i in range(len(a)-1):
 		yield (a[i], a[i+1])
 
 def logistic(x):
-	# return 1.0 / (1.0 + np.exp(-x))
+	"""
+	Calculate the logistic function for each element in a
+	numpy.ndarray.
+	http://en.wikipedia.org/wiki/Logistic_function
+
+	Note: this eventually became a simple wrapper for
+	scipy.special.expit which does the same thing
+	http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.special.expit.html
+	"""
 	return scipy.special.expit(x)
 
 def logistic_deriv(x):
+	"""
+	Calculate the derivative of the logistic function at each
+	value of a numpy.ndarray
+
+	If the logistic function is y = 1.0 / (1.0 + exp(x))
+	then the derivative of that function can be written as:
+	y' = y * (1 - y)
+	"""
 	log = logistic(x)
 	return log * (1 - log)
 
 def squared_error(actuals, expected):
+	"""
+	Given a 1D numpy.ndarray of calculated values and a same-sized
+	numpy.ndarray of expected values, calculate the squared error
+	between the two arrays, and the partial derivatives of the error
+	with respect to each element of the output.
+
+	The value returned from this function is a tuple of
+	(sq_err, derr_by_doutput)
+	with types (float, numpy.ndarray) respectively
+
+	The squared error is given as:
+	sq_err = 0.5 * sum((actuals[i] - expected[i])**2)
+
+	The partial derivatives are given as:
+	derr_by_doutput[i] = actuals[i] - expected[i]
+	"""
+
 	diffs = actuals - expected
 	return (
 		0.5 * np.sum(diffs * diffs), # error
@@ -21,11 +63,30 @@ def squared_error(actuals, expected):
 	)
 
 def normalize_vector(vec):
+	"""
+	Normalize any vector to a unit vector by dividing by its
+	length (Euclidean distance).
+	"""
 	sq = vec * vec
 	return vec / np.sqrt(np.sum(sq))
 
+def sum_sizes(lists):
+	"""
+	lists is assumed to be a list of lists of numpy.ndarrays (like you
+	would get from the *lists parameter in flatten_lists_of_arrays).
+	Return the sum of the sizes of all of the ndarrays passed.
+	"""
+	return sum([sum([nda.size for nda in list_]) for list_ in lists])
+
 def flatten_lists_of_arrays(*lists):
-	total_size = sum([sum([nda.size for nda in list_]) for list_ in lists])
+	"""
+	Given an arbitrary number of parameters that are all
+	lists of numpy.ndarray, return a 1D numpy.ndarray
+	that contains the concatenation of all of the input
+	ndarrays, flattened
+	"""
+
+	total_size = sum_sizes(lists)
 
 	result = np.empty(total_size)
 	start = 0
@@ -37,6 +98,19 @@ def flatten_lists_of_arrays(*lists):
 	return result
 
 def unflatten_to_lists_of_arrays(flattened, *outputs):
+	"""
+	This function is intended to be the inverse of flatten_lists_of_arrays(*lists)
+
+	Given a 1D numpy.ndarray and an arbitrary number of parameters that are
+	lists of numpy.ndarray, fill each ndarray in order from the contents of the
+	1D array.
+
+	This function requires you to initialize and pass the arrays to be filled
+	so as to avoid requiring you to pass a complicated object specifying the
+	sizes of the nested lists and ndarrays. It is assumed that
+	flattened.size == sum_sizes(outputs), but no checking is done to
+	verify that.
+	"""
 	start = 0
 	for outlist in outputs:
 		for ndarray in outlist:
@@ -57,11 +131,27 @@ class FeedForwardNet(object):
 	def __init__(
 		self,
 		layer_sizes,
-		alpha=0.1,
 		sigmoid_fn_pair=(logistic, logistic_deriv),
 		err_fn=squared_error
 	):
-		self.alpha = 0.1
+		"""
+		layer_sizes: (required) a list of ints specifying the number of
+		neurons in each layer of this network. There must be at least
+		2 ints: the input and output layers respectively. Any additional
+		layers will be hidden layers.
+
+		sigmoid_fn_pair: (optional) a 2-tuple of functions representing
+		a sigmoid function and its derivative respectively. They are
+		both assumed to take in a numpy.ndarray of floats and return
+		the same. Default is (neuralnet.logistic, neuralnet.logistic_deriv)
+
+		err_fn: (optional) a function that calculates the error between
+		the output of this network and the expected output of a training
+		case. The function is assumed to take in two equally-sized
+		numpy.ndarrays: (actuals, expected). It is assumed to return a
+		2-tuple of (error, derror_by_doutput) with types (float, ndarray)
+		respectively. The default value is neuralnet.squared_error
+		"""
 
 		self.sigmoid, self.sigmoid_deriv = sigmoid_fn_pair
 		self.err_fn = squared_error
@@ -79,6 +169,22 @@ class FeedForwardNet(object):
 		]
 
 	def forward(self, inputs, outputs=NORMAL_OUTPUTS):
+		"""
+		Run the inputs through this FeedForward network in the standard
+		normal direction.
+
+		Setting outputs=NORMAL_OUTPUTS (default) will return the outputs
+		of the final layer of the network.
+
+		Setting outputs=DEBUGGING_OUTPUTS will return a tuple of
+		(layer_outputs, layer_inputs) where layer outputs is a list
+		of numpy.ndarray representing the outputs of every neuron at
+		every layer of the network. layer_inputs is similar, and of the
+		same shape, but contains the inputs to each neuron in the net
+
+		Setting outputs=ALL_LAYER_OUTPUTS will return layer_outputs as
+		described in the section for outputs=DEBUGGING_OUTPUTS
+		"""
 		
 		#sum of inputs (first layer will be ignored)
 		layer_inputs = [
@@ -121,13 +227,59 @@ class FeedForwardNet(object):
 			raise Exception("Unrecognized value of 'outputs' in FeedForwardNet.forward()")
 
 	def get_flattened_weights(self):
+		"""
+		Return a 1D numpy.ndarray that represents the flattened weights of this
+		network.
+
+		The structure of the flattened array is not specified to outside code, except
+		to guarantee that it is consistent with other flattened_weights methods, and
+		that you can apply element-wise operations in a meaningful way (e.g. you can
+		add two flattened weight arrays to get the sum of the weights)
+		"""
 		return flatten_lists_of_arrays(self.weights, self.bias_weights[1:])
 
 	def set_flattened_weights(self, flattened_weights):
+		"""
+		Set the weights of this network according to the passed flattened_weights
+
+		The structure of the flattened array is not specified to outside code, except
+		to guarantee that it is consistent with other flattened_weights methods, and
+		that you can apply element-wise operations in a meaningful way (e.g. you can
+		add two flattened weight arrays to get the sum of the weights)
+		"""
 		unflatten_to_lists_of_arrays(flattened_weights, self.weights, self.bias_weights[1:])
 
+	def zeros_like_flattened_weights(self):
+		"""
+		Return a 1D numpy.zeros array that has the same shape as the arrays used
+		in other flattened_weights methods.
+
+		The structure of the flattened array is not specified to outside code, except
+		to guarantee that it is consistent with other flattened_weights methods, and
+		that you can apply element-wise operations in a meaningful way (e.g. you can
+		add two flattened weight arrays to get the sum of the weights)
+		"""
+		return np.zeros(sum_sizes([self.weights, self.bias_weights[1:]]))
+
 	def get_partial_derivs(self, test_case_inputs, test_case_actuals, outputs=NORMAL_OUTPUTS):
-		"""backprop implementation"""
+		"""
+		Given a single test case and expected outputs for that test case, calculate the
+		partial derivatives of the error with respect to the weights of the network.
+
+		Internally this method implements the backpropagation algorithm to calculate the
+		weights.
+		http://en.wikipedia.org/wiki/Backpropagation
+		https://class.coursera.org/neuralnets-2012-001/lecture/39
+
+		If outputs=NORMAL_OUTPUTS (default) is specified, a tuple of
+		(weight_derivs, bias_weight_derivs) is returned where each item is a list of
+		numpy.ndarray. The shape and order of weight_derivs will be identical to that
+		of self.weights and similarly bias_weight_derivs will match up to self.bias_weights
+
+		If outputs=FLATTENED_OUTPUTS is specified, the outputs will be a 1D
+		numpy.ndarray that is compatible with the 1D arrays used by the other
+		flattened_weights methods available in this class
+		"""
 
 		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
 
