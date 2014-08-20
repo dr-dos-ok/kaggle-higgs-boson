@@ -118,6 +118,12 @@ def unflatten_to_lists_of_arrays(flattened, *outputs):
 			ndarray.ravel()[:] = flattened[start:stop]
 			start = stop
 
+def printl(name, larray):
+	print name
+	for arr in larray:
+		print arr
+	print
+
 NORMAL_OUTPUTS = 0
 DEBUGGING_OUTPUTS = 1
 ALL_LAYER_OUTPUTS = 2
@@ -187,34 +193,21 @@ class FeedForwardNet(object):
 		"""
 		
 		#sum of inputs (first layer will be ignored)
-		layer_inputs = [
-			np.empty(size)
-			for size in self.layer_sizes
-		]
+		layer_inputs = [None] * len(self.layer_sizes)
 
 		#after sigmoid function
-		layer_outputs = [
-			np.empty(size)
-			for size in self.layer_sizes
-		]
+		layer_outputs = [None] * len(self.layer_sizes)
 
 		#set input as output of first layer
-		layer_outputs[0][:] = inputs
+		layer_outputs[0] = inputs.copy()
 
 		for prev_layer_index, layer_index in adjacent_pairs(range(self.nlayers)):
 			layer_inputs[layer_index] = np.dot(
-				layer_outputs[prev_layer_index].T,
+				layer_outputs[prev_layer_index],
 				self.weights[prev_layer_index]
 			)
 
-			try:
-				layer_inputs[layer_index] += self.bias_weights[layer_index]
-			except:
-				print
-				print layer_index
-				print self.bias_weights[layer_index]
-				print self.bias_weights
-				exit()
+			layer_inputs[layer_index] += self.bias_weights[layer_index]
 			layer_outputs[layer_index] = self.sigmoid(layer_inputs[layer_index])
 
 		if outputs == NORMAL_OUTPUTS:
@@ -283,23 +276,20 @@ class FeedForwardNet(object):
 
 		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
 
-		layer_output_derivs = [
-			np.empty(size)
-			for size in self.layer_sizes
-		]
+		# print
+		# print "layer_outputs"
+		# for a in layer_outputs:
+		# 	print a
+		# print
 
-		layer_input_derivs = [
-			np.empty(size)
-			for size in self.layer_sizes[1:]
-		]
-
-		weight_derivs = [
-			np.empty((top, bottom+1), dtype=np.float64)
-			for bottom, top in adjacent_pairs(self.layer_sizes)
-		]
+		#init python arrays to appropriate length
+		#we'll fill with ndarrays presently
+		layer_output_derivs = [None] * len(self.layer_sizes)
+		layer_input_derivs = [None] * len(self.layer_sizes)
+		weight_derivs = [None] * len(self.layer_sizes - 1)
 
 		err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_actuals)
-		layer_output_derivs[-1][:] = derror_by_doutput
+		layer_output_derivs[-1] = derror_by_doutput
 
 		for layer_index in range(self.nlayers-1, 0, -1):
 			y = layer_outputs[layer_index]

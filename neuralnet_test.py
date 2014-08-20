@@ -316,6 +316,61 @@ class TestFeedForwardNet(unittest.TestCase):
 			bias_weight_partial_derivs[2]
 		)
 
+	def test_multiple_rows_forward(self):
+		rows = np.array([
+			[1,2,3,4,5],
+			[6,7,8,9,0]
+		])
+
+		# random initialization
+		net = nn.FeedForwardNet([5,3,2])
+
+		row0_out = net.forward(rows[0])
+		row1_out = net.forward(rows[1])
+
+		multirow_out = net.forward(rows)
+
+		assert_array_equal(multirow_out[0], row0_out)
+		assert_array_equal(multirow_out[1], row1_out)
+
+	def test_multiple_rows_backprop(self):
+		rows = np.array([
+			[1,2,3,4,5],
+			[6,7,8,9,0]
+		])
+
+		row_outputs = np.array([
+			[0.5, 0.5],
+			[-0.5, -0.5]
+		])
+
+		# random initialization
+		net = nn.FeedForwardNet([5,3,2])
+
+		row0_weight_partial_derivs, row0_bias_weight_partial_derivs = net.get_partial_derivs(rows[0], row_outputs[0])
+		row1_weight_partial_derivs, row1_bias_weight_partial_derivs = net.get_partial_derivs(rows[1], row_outputs[1])
+
+		multirow_weight_partial_derivs, multirow_bias_weight_partial_derivs = net.get_partial_derivs(rows, row_outputs)
+
+		assert_array_equal(
+			multirow_weight_partial_derivs[0],
+			(row0_weight_partial_derivs[0] + row1_weight_partial_derivs[0]) / 2.0
+		)
+		assert_array_equal(
+			multirow_weight_partial_derivs[1],
+			(row0_weight_partial_derivs[1] + row1_weight_partial_derivs[1]) / 2.0
+		)
+
+		assert_array_equal(
+			multirow_bias_weight_partial_derivs[0],
+			(row0_bias_weight_partial_derivs[0] + row1_bias_weight_partial_derivs[0]) / 2.0
+		)
+		assert_array_equal(
+			multirow_bias_weight_partial_derivs[1],
+			(row0_bias_weight_partial_derivs[1] + row1_bias_weight_partial_derivs[1]) / 2.0
+		)
+
+
 class TestNeurons(unittest.TestCase):
 	def test_neuron(self):
 		"""same net as TestFeedForwardNet.test_forward()"""
