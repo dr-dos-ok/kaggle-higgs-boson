@@ -274,13 +274,10 @@ class FeedForwardNet(object):
 		flattened_weights methods available in this class
 		"""
 
-		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
+		if test_case_inputs.ndim == 1:
+			test_case_inputs = test_case_inputs.reshape(1,-1)
 
-		# print
-		# print "layer_outputs"
-		# for a in layer_outputs:
-		# 	print a
-		# print
+		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
 
 		#init python arrays to appropriate length
 		#we'll fill with ndarrays presently
@@ -293,15 +290,16 @@ class FeedForwardNet(object):
 
 		for layer_index in range(self.nlayers-1, 0, -1):
 			y = layer_outputs[layer_index]
-			layer_input_derivs[layer_index-1] = y * (1.0 - y) * layer_output_derivs[layer_index]
+			layer_input_derivs[layer_index] = y * (1.0 - y) * layer_output_derivs[layer_index]
 
 			layer_output_derivs[layer_index-1] = np.dot(
-				self.weights[layer_index-1],
-				layer_input_derivs[layer_index-1].T
+				layer_input_derivs[layer_index],
+				self.weights[layer_index-1].T
+				
 			)
 
 		weight_derivs = [
-			weights * layer_input_derivs[index]
+			weights * np.mean(layer_input_derivs[index+1], axis=0)
 			for index, weights in enumerate(self.weights)
 		]
 
@@ -310,7 +308,7 @@ class FeedForwardNet(object):
 		#leaving out the None for a moment makes certain things easier in a sec
 		#(flatten_lists_of_arrays doesn't work with None's)
 		raw_bias_weight_derivs = [
-			weights * layer_input_derivs[index]
+			weights * np.mean(layer_input_derivs[index+1], axis=0)
 			for index, weights in enumerate(self.bias_weights[1:])
 		]
 

@@ -352,22 +352,23 @@ class TestFeedForwardNet(unittest.TestCase):
 
 		multirow_weight_partial_derivs, multirow_bias_weight_partial_derivs = net.get_partial_derivs(rows, row_outputs)
 
-		assert_array_equal(
+		assert_almost_equal(
 			multirow_weight_partial_derivs[0],
 			(row0_weight_partial_derivs[0] + row1_weight_partial_derivs[0]) / 2.0
 		)
-		assert_array_equal(
+		assert_almost_equal(
 			multirow_weight_partial_derivs[1],
 			(row0_weight_partial_derivs[1] + row1_weight_partial_derivs[1]) / 2.0
 		)
 
-		assert_array_equal(
-			multirow_bias_weight_partial_derivs[0],
-			(row0_bias_weight_partial_derivs[0] + row1_bias_weight_partial_derivs[0]) / 2.0
-		)
-		assert_array_equal(
+		self.assertEqual(multirow_bias_weight_partial_derivs[0], None)
+		assert_almost_equal(
 			multirow_bias_weight_partial_derivs[1],
 			(row0_bias_weight_partial_derivs[1] + row1_bias_weight_partial_derivs[1]) / 2.0
+		)
+		assert_almost_equal(
+			multirow_bias_weight_partial_derivs[2],
+			(row0_bias_weight_partial_derivs[2] + row1_bias_weight_partial_derivs[2]) / 2.0
 		)
 
 
