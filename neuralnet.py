@@ -316,7 +316,8 @@ class FeedForwardNet(object):
 			)
 
 		weight_derivs = [
-			weights * np.mean(layer_input_derivs[index+1], axis=0)
+			np.dot(layer_outputs[index].T, layer_input_derivs[index+1]) / layer_outputs[index].shape[0]
+			# layer_outputs[index] * np.mean(layer_input_derivs[index+1], axis=0)
 			for index, weights in enumerate(self.weights)
 		]
 
@@ -325,7 +326,7 @@ class FeedForwardNet(object):
 		#leaving out the None for a moment makes certain things easier in a sec
 		#(flatten_lists_of_arrays doesn't work with None's)
 		raw_bias_weight_derivs = [
-			weights * np.mean(layer_input_derivs[index+1], axis=0)
+			np.mean(layer_input_derivs[index+1], axis=0)
 			for index, weights in enumerate(self.bias_weights[1:])
 		]
 
@@ -333,3 +334,5 @@ class FeedForwardNet(object):
 			return (weight_derivs, [None] + raw_bias_weight_derivs)
 		elif outputs == FLATTENED_OUTPUTS:
 			return flatten_lists_of_arrays(weight_derivs, raw_bias_weight_derivs)
+		elif outputs == DEBUGGING_OUTPUTS:
+			return (layer_input_derivs, layer_output_derivs, weight_derivs, [None] + raw_bias_weight_derivs)

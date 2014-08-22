@@ -123,7 +123,7 @@ class NeuronConnection(object):
 		self.weight = weight
 
 	def calc_derror_by_dweight(self):
-		self.derror_by_dweight = self.weight * self.upper_neuron.derror_by_dinput
+		self.derror_by_dweight = self.lower_neuron.output * self.upper_neuron.derror_by_dinput
 
 def make_connection(lower_neuron, upper_neuron, weight):
 	conn = NeuronConnection(lower_neuron, upper_neuron, weight)
