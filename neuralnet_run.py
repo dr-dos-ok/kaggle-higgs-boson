@@ -4,7 +4,7 @@ import neuralnet as nn
 
 import signal
 
-ITERATIONS = 1000
+ITERATIONS = 100
 
 def z_score(col):
 	"""Calculate the z-scores of a column or pandas.Series"""
@@ -40,10 +40,10 @@ def describe(df):
 	print
 
 # print iris[iris["Name"]=="Iris-setosa"].describe(percentiles=[])
-describe(iris[iris["Name"]=="Iris-setosa"])
-describe(iris[iris["Name"]=="Iris-versicolor"])
-describe(iris[iris["Name"]=="Iris-virginica"])
-exit()
+# describe(iris[iris["Name"]=="Iris-setosa"])
+# describe(iris[iris["Name"]=="Iris-versicolor"])
+# describe(iris[iris["Name"]=="Iris-virginica"])
+# exit()
 
 feature_cols = ["SepalLength", "SepalWidth", "PetalLength", "PetalWidth"]
 zscore_cols = ["z" + col for col in feature_cols]
@@ -63,8 +63,9 @@ iris[zscore_cols] = zscores
 # print iris.ix[:20]
 # exit()
 
+NUM_HIDDEN = 24
 net = nn.FeedForwardNet(
-	[len(feature_cols), 25, len(output_cols)],
+	[len(feature_cols), NUM_HIDDEN, len(output_cols)],
 	err_fn=nn.quadratic_error
 )
 
@@ -78,7 +79,7 @@ print np.mean(errs)
 velocity = net.zeros_like_flattened_weights()
 learning_rate = 0.01
 velocity_decay = 0.9
-batch_size = 40 # iris.shape[0]
+batch_size = 20 # iris.shape[0]
 
 flattened_weights = net.get_flattened_weights()
 
@@ -88,6 +89,20 @@ print
 
 learning_rate_lerp = make_lerp((0, 0.1), (ITERATIONS-1, 0.1))
 velocity_decay_lerp = make_lerp((0, 0.9), (ITERATIONS-1, 0.5))
+
+# factor_mask = np.concatenate([
+# 	np.ones(len(feature_cols) * NUM_HIDDEN), # input-hidden weight matrix
+# 	np.zeros(NUM_HIDDEN * len(output_cols)), # hidden-output weight matrix
+# 	np.ones(NUM_HIDDEN), # hidden biases
+# 	np.zeros(len(output_cols)) # output biases
+# ])
+
+weight_decay = np.concatenate([
+	1.01 * np.ones(len(feature_cols) * NUM_HIDDEN), # input-hidden weight matrix
+	1.001 * np.ones(NUM_HIDDEN * len(output_cols)), # hidden-output weight matrix
+	0.99 * np.ones(NUM_HIDDEN), # hidden biases
+	0.999 * np.ones(len(output_cols)) # output biases
+])
 
 for i in xrange(ITERATIONS):
 	
@@ -109,7 +124,10 @@ for i in xrange(ITERATIONS):
 	velocity += (-avg_grad * learning_rate)
 	velocity *= velocity_decay
 
+	
+
 	flattened_weights += velocity
+	flattened_weights *= weight_decay
 	net.set_flattened_weights(flattened_weights)
 
 	errs, err_dervs = nn.squared_error(
@@ -129,4 +147,6 @@ sampledf = pd.DataFrame(sample, columns=["x" + col for col in output_cols])
 for col in output_cols:
 	sampledf[col] = iris[col]
 print
-print sampledf.ix[:20]
+print sampledf[sampledf["is_setosa"]==1.0].iloc[:5].to_string()
+print sampledf[sampledf["is_versicolor"]==1.0].iloc[:5].to_string()
+print sampledf[sampledf["is_virginica"]==1.0].iloc[:5].to_string()
