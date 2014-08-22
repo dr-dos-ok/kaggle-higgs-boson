@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.special
+import math
 
 def adjacent_pairs(a):
 	"""
@@ -180,12 +181,12 @@ class FeedForwardNet(object):
 		self.nlayers = len(layer_sizes)
 
 		self.weights = [
-			np.random.random((bottom, top)) / top
+			(2.0 * (np.random.random((bottom, top)) - 0.5)) / math.sqrt(bottom+1)
 			for bottom, top in adjacent_pairs(layer_sizes)
 		]
 		self.bias_weights = [None] + [
-			np.random.random(layer_size) / layer_size
-			for layer_size in self.layer_sizes[1:]
+			(2.0 * (np.random.random(top) - 0.5)) / math.sqrt(bottom+1)
+			for bottom, top in adjacent_pairs(layer_sizes)
 		]
 
 	def forward(self, inputs, outputs=NORMAL_OUTPUTS):
@@ -312,7 +313,6 @@ class FeedForwardNet(object):
 			layer_output_derivs[layer_index-1] = np.dot(
 				layer_input_derivs[layer_index],
 				self.weights[layer_index-1].T
-				
 			)
 
 		weight_derivs = [
