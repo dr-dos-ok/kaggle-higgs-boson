@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import sqlite3, sys, time, math
+import sqlite3, sys, time, math, signal
 
 _write_time_stack = []
 def write(s):
@@ -30,6 +30,15 @@ def fmtTime(secs):
 		return "%d:%02d mins" % (mins, int(secs))
 	else:
 		return "%.4f secs" % secs
+
+_SIGINT_CAUGHT = False
+def handle_sigint(signal, frame):
+	global _SIGINT_CAUGHT
+	_SIGINT_CAUGHT = True
+signal.signal(signal.SIGINT, handle_sigint)
+
+def is_cancelled():
+	return _SIGINT_CAUGHT
 
 _conn = None
 def dbConn():
