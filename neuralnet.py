@@ -45,6 +45,12 @@ def squared_error(actuals, expected):
 	between the two arrays, and the partial derivatives of the error
 	with respect to each element of the output.
 
+	Alternately, given 2 same-sized 2D ndarrays of actual and
+	expected values, compute a 1D array of errors such that
+	errors[i] = squared_error(actuals[i], expected[i])
+	The partial derivatives then become a 2D array of the same
+	size as the input
+
 	The value returned from this function is a tuple of
 	(sq_err, derr_by_doutput)
 	with types (float, numpy.ndarray) respectively
@@ -58,8 +64,16 @@ def squared_error(actuals, expected):
 
 	diffs = actuals - expected
 	return (
-		0.5 * np.sum(diffs * diffs), # error
+		0.5 * np.sum(diffs * diffs, axis=1), # error
 		diffs # derror_by_doutput
+	)
+
+def quadratic_error(actuals, expected):
+
+	diffs = actuals - expected
+	return (
+		np.sum(diffs**4, axis=1),
+		-4.0 * (diffs**3)
 	)
 
 def normalize_vector(vec):
@@ -166,11 +180,11 @@ class FeedForwardNet(object):
 		self.nlayers = len(layer_sizes)
 
 		self.weights = [
-			np.random.random((bottom, top))
+			np.random.random((bottom, top)) / top
 			for bottom, top in adjacent_pairs(layer_sizes)
 		]
 		self.bias_weights = [None] + [
-			np.random.random(layer_size)
+			np.random.random(layer_size) / layer_size
 			for layer_size in self.layer_sizes[1:]
 		]
 
@@ -258,6 +272,9 @@ class FeedForwardNet(object):
 		"""
 		Given a single test case and expected outputs for that test case, calculate the
 		partial derivatives of the error with respect to the weights of the network.
+
+		Alternately, given a matrix of test cases (test cases are rows), calculate the average
+		partial derivatives of each weight over the entire passed set of cases
 
 		Internally this method implements the backpropagation algorithm to calculate the
 		weights.
