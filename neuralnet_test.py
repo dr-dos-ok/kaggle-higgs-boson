@@ -6,7 +6,24 @@ from scipy.special import expit
 import neuralnet as nn
 import neurons
 
-class TestFunctions(unittest.TestCase):
+class TestCase(unittest.TestCase):
+	def assert_list_of_arrays_equal(self, la1, la2):
+		self.assertEqual(len(la1), len(la2))
+		for index in range(len(la1)):
+			if la1[index] is None:
+				self.assertEqual(la1[index], la2[index])
+			else:
+				assert_array_equal(la1[index], la2[index])
+
+	def assert_list_of_arrays_almost_equal(self, la1, la2, decimal=7):
+		self.assertEqual(len(la1), len(la2))
+		for index in range(len(la1)):
+			if la1[index] is None:
+				self.assertEqual(la1[index], la2[index])
+			else:
+				assert_almost_equal(la1[index], la2[index], decimal=decimal)
+
+class TestFunctions(TestCase):
 	def test_adjacent_pairs(self):
 		pairs_list = [1,2,3,4]
 		expected_pairs = [(1,2), (2,3), (3,4)]
@@ -80,7 +97,7 @@ class TestFunctions(unittest.TestCase):
 			assert_array_equal(expected1[index], outlist1[index])
 			assert_array_equal(expected2[index], outlist2[index])
 
-class TestFeedForwardNet(unittest.TestCase):
+class TestFeedForwardNet(TestCase):
 
 	def test_forward(self):
 		net = nn.FeedForwardNet([5, 3, 1])
@@ -370,6 +387,79 @@ class TestFeedForwardNet(unittest.TestCase):
 			multirow_bias_weight_partial_derivs[2],
 			(row0_bias_weight_partial_derivs[2] + row1_bias_weight_partial_derivs[2]) / 2.0
 		)
+
+	def test_backprop_manual(self):
+		"""some numbers that I came up with by hand, once"""
+
+		net = nn.FeedForwardNet([2, 2, 1])
+		net.weights = [
+			np.array([
+				[1.9, 2.1],
+				[2.1, 1.9]
+			]),
+			np.array([
+				[-1.0],
+				[1.0]
+			])
+		]
+		net.bias_weights = [
+			None,
+			np.array([-3.1, -1.1]),
+			np.array([0.0])
+		]
+
+		inputs = np.array([0, 1])
+		expected = np.array([1.0])
+
+		layer_outputs, layer_inputs = net.forward(inputs, outputs=nn.DEBUGGING_OUTPUTS)
+		layer_input_derivs, layer_output_derivs, weight_derivs, bias_derivs = net.get_partial_derivs(inputs, expected, outputs=nn.DEBUGGING_OUTPUTS)
+
+		expected_layer_outputs = [
+			np.array([0, 1]),
+			np.array([0.26894142, 0.68997448]),
+			np.array([0.60373043])
+		]
+		self.assert_list_of_arrays_almost_equal(expected_layer_outputs, layer_outputs)
+
+		expected_layer_inputs = [
+			None,
+			np.array([-1.0, 0.8]),
+			np.array([ 0.42103306])
+		]
+		self.assert_list_of_arrays_almost_equal(expected_layer_inputs, layer_inputs)
+
+		expected_layer_output_derivs = [
+			np.array([[-0.00717167, 0.00061211]]),
+			np.array([[ 0.09480353, -0.09480353]]),
+			np.array([[-0.39626957]])
+		]
+		self.assert_list_of_arrays_almost_equal(expected_layer_output_derivs, layer_output_derivs)
+
+		expected_layer_input_derivs = [
+			None,
+			np.array([[ 0.01863951, -0.02027939]]),
+			np.array([[-0.09480353]])
+		]
+		self.assert_list_of_arrays_almost_equal(expected_layer_input_derivs, layer_input_derivs)
+
+		expected_weight_derivs = [
+			np.array([
+				[ 0.        ,  0.        ],
+				[ 0.01863951, -0.02027939]
+			]),
+			np.array([
+				[-0.0254966 ],
+				[-0.06541202]
+			])
+		]
+		self.assert_list_of_arrays_almost_equal(expected_weight_derivs, weight_derivs)
+
+		expected_bias_derivs = [
+			None,
+			np.array([ 0.01863951, -0.02027939]),
+			np.array([-0.09480353])
+		]
+		self.assert_list_of_arrays_almost_equal(expected_bias_derivs, bias_derivs)
 
 
 class TestNeurons(unittest.TestCase):
