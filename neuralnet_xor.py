@@ -6,6 +6,8 @@ from scipy.special import expit
 
 import signal, bkputils, math, sys
 
+BATCH_SIZE = 2
+
 xor = np.array([
 	[0, 0, 0],
 	[0, 1, 1],
@@ -46,9 +48,9 @@ min_weights = net_weights.copy()
 print "initial_error:", initial_error
 
 while not bkputils.is_cancelled():
-	rnd = np.random.randint(0,4)
-	inputs = xor[rnd,[0,1]]
-	output = xor[rnd,2]
+	batch_indices = np.random.choice(xor.shape[0], BATCH_SIZE, replace=False)
+	inputs = xor[:,[0,1]][batch_indices]
+	output = xor[:,[2]][batch_indices]
 
 	grad = net.get_partial_derivs(
 		inputs,
