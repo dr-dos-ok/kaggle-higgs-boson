@@ -63,7 +63,7 @@ while not bkputils.is_cancelled():
 		min_weights = net_weights.copy()
 
 	learning_rate = 0.02 #sqerr / 1000.0
-	velocity_decay = 0.0 # expit(40.0 * sqerr - 4.0)
+	velocity_decay = 0.9 # expit(40.0 * sqerr - 4.0)
 
 	grad = grad * learning_rate
 	velocity *= velocity_decay
