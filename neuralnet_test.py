@@ -32,17 +32,18 @@ class TestFunctions(TestCase):
 		actual_pairs = [pair for pair in nn.adjacent_pairs(pairs_list)]
 		assert_array_equal(expected_pairs, actual_pairs)
 
-	# def test_logistic(self):
-	# 	inputs = np.array([-10.0, -2.0, -1.0, 0.0, 1.0, 2.0, 10.0])
-	# 	expected = 1.0 / (1.0 + np.exp(-inputs))
-	# 	actual = nn.logistic(inputs)
-	# 	assert_array_equal(expected, actual)
-
 	def test_logistic_deriv(self):
 		inputs = np.array([-10.0, -2.0, -1.0, 0.0, 1.0, 2.0, 10.0])
 		log = 1.0 / (1.0 + np.exp(-inputs))
 		expected = log * (1.0 - log)
 		actual = nn.logistic_deriv(None, log)
+		assert_array_equal(expected, actual)
+
+	def test_tanh_deriv(self):
+		inputs = np.array([-10.0, -2.0, -1.0, 0.0, 1.0, 2.0, 10.0])
+		y = np.tanh(inputs)
+		expected = 1.0 - y**2
+		actual = nn.tanh_deriv(None, y)
 		assert_array_equal(expected, actual)
 
 	def test_flatten_lists_of_arrays(self):
@@ -435,11 +436,6 @@ class TestFeedForwardNet(TestCase):
 			np.array([[ 0.09480353, -0.09480353]]),
 			np.array([[-0.39626957]])
 		]
-
-		# nn.printl("expected_layer_output_derivs", expected_layer_output_derivs)
-		# nn.printl("layer_output_derivs", layer_output_derivs)
-		# print "===================="
-
 		self.assert_list_of_arrays_almost_equal(expected_layer_output_derivs, layer_output_derivs)
 
 		expected_layer_input_derivs = [
@@ -447,10 +443,6 @@ class TestFeedForwardNet(TestCase):
 			np.array([[ 0.01863951, -0.02027939]]),
 			np.array([[-0.09480353]])
 		]
-
-		# nn.printl("expected_layer_input_derivs", expected_layer_input_derivs)
-		# nn.printl("layer_input_derivs", layer_input_derivs)
-		# exit()
 
 		self.assert_list_of_arrays_almost_equal(expected_layer_input_derivs, layer_input_derivs)
 
