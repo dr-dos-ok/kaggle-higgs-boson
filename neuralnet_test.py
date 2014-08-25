@@ -17,13 +17,13 @@ class TestCase(unittest.TestCase):
 			else:
 				assert_array_equal(la1[index], la2[index])
 
-	def assert_list_of_arrays_almost_equal(self, la1, la2, decimal=7):
+	def assert_list_of_arrays_allclose(self, la1, la2, rtol=1e-05, atol=0.0):
 		self.assertEqual(len(la1), len(la2))
 		for index in range(len(la1)):
 			if la1[index] is None:
 				self.assertEqual(la1[index], la2[index])
 			else:
-				assert_almost_equal(la1[index], la2[index], decimal=decimal)
+				assert_allclose(la1[index], la2[index], rtol=rtol, atol=atol)
 
 class TestFunctions(TestCase):
 	def test_adjacent_pairs(self):
@@ -315,11 +315,11 @@ class TestFeedForwardNet(TestCase):
 		#forward & backward pass all in one go
 		weight_partial_derivs, bias_weight_partial_derivs = net.get_partial_derivs(inputs, expected_outputs)
 
-		assert_almost_equal(
+		assert_allclose(
 			expected_weight_derivs[0],
 			weight_partial_derivs[0]
 		)
-		assert_almost_equal(
+		assert_allclose(
 			expected_weight_derivs[1],
 			weight_partial_derivs[1]
 		)
@@ -327,11 +327,11 @@ class TestFeedForwardNet(TestCase):
 		#both should be None
 		self.assertEqual(expected_bias_weight_derivs[0], bias_weight_partial_derivs[0])
 
-		assert_almost_equal(
+		assert_allclose(
 			expected_bias_weight_derivs[1],
 			bias_weight_partial_derivs[1]
 		)
-		assert_almost_equal(
+		assert_allclose(
 			expected_bias_weight_derivs[2],
 			bias_weight_partial_derivs[2]
 		)
@@ -372,21 +372,21 @@ class TestFeedForwardNet(TestCase):
 
 		multirow_weight_partial_derivs, multirow_bias_weight_partial_derivs = net.get_partial_derivs(rows, row_outputs)
 
-		assert_almost_equal(
+		assert_allclose(
 			multirow_weight_partial_derivs[0],
 			(row0_weight_partial_derivs[0] + row1_weight_partial_derivs[0]) / 2.0
 		)
-		assert_almost_equal(
+		assert_allclose(
 			multirow_weight_partial_derivs[1],
 			(row0_weight_partial_derivs[1] + row1_weight_partial_derivs[1]) / 2.0
 		)
 
 		self.assertEqual(multirow_bias_weight_partial_derivs[0], None)
-		assert_almost_equal(
+		assert_allclose(
 			multirow_bias_weight_partial_derivs[1],
 			(row0_bias_weight_partial_derivs[1] + row1_bias_weight_partial_derivs[1]) / 2.0
 		)
-		assert_almost_equal(
+		assert_allclose(
 			multirow_bias_weight_partial_derivs[2],
 			(row0_bias_weight_partial_derivs[2] + row1_bias_weight_partial_derivs[2]) / 2.0
 		)
@@ -422,21 +422,21 @@ class TestFeedForwardNet(TestCase):
 			np.array([0.26894142, 0.68997448]),
 			np.array([0.60373043])
 		]
-		self.assert_list_of_arrays_almost_equal(expected_layer_outputs, layer_outputs)
+		self.assert_list_of_arrays_allclose(expected_layer_outputs, layer_outputs)
 
 		expected_layer_inputs = [
 			None,
 			np.array([-1.0, 0.8]),
 			np.array([ 0.42103306])
 		]
-		self.assert_list_of_arrays_almost_equal(expected_layer_inputs, layer_inputs)
+		self.assert_list_of_arrays_allclose(expected_layer_inputs, layer_inputs)
 
 		expected_layer_output_derivs = [
 			np.array([[-0.00717167, 0.00061211]]),
 			np.array([[ 0.09480353, -0.09480353]]),
 			np.array([[-0.39626957]])
 		]
-		self.assert_list_of_arrays_almost_equal(expected_layer_output_derivs, layer_output_derivs)
+		self.assert_list_of_arrays_allclose(expected_layer_output_derivs, layer_output_derivs)
 
 		expected_layer_input_derivs = [
 			None,
@@ -444,7 +444,7 @@ class TestFeedForwardNet(TestCase):
 			np.array([[-0.09480353]])
 		]
 
-		self.assert_list_of_arrays_almost_equal(expected_layer_input_derivs, layer_input_derivs)
+		self.assert_list_of_arrays_allclose(expected_layer_input_derivs, layer_input_derivs)
 
 		expected_weight_derivs = [
 			np.array([
@@ -456,14 +456,14 @@ class TestFeedForwardNet(TestCase):
 				[-0.06541202]
 			])
 		]
-		self.assert_list_of_arrays_almost_equal(expected_weight_derivs, weight_derivs)
+		self.assert_list_of_arrays_allclose(expected_weight_derivs, weight_derivs)
 
 		expected_bias_derivs = [
 			None,
 			np.array([ 0.01863951, -0.02027939]),
 			np.array([-0.09480353])
 		]
-		self.assert_list_of_arrays_almost_equal(expected_bias_derivs, bias_derivs)
+		self.assert_list_of_arrays_allclose(expected_bias_derivs, bias_derivs)
 
 
 class TestNeurons(unittest.TestCase):
