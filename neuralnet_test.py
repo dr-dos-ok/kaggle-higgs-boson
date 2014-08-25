@@ -6,6 +6,8 @@ from scipy.special import expit
 import neuralnet as nn
 import neurons
 
+np.random.seed(9)
+
 class TestCase(unittest.TestCase):
 	def assert_list_of_arrays_equal(self, la1, la2):
 		self.assertEqual(len(la1), len(la2))
@@ -347,8 +349,8 @@ class TestFeedForwardNet(TestCase):
 
 		multirow_out = net.forward(rows)
 
-		assert_array_equal(multirow_out[0], row0_out)
-		assert_array_equal(multirow_out[1], row1_out)
+		assert_allclose(multirow_out[0], row0_out)
+		assert_allclose(multirow_out[1], row1_out)
 
 	def test_multiple_rows_backprop(self):
 		rows = np.array([
