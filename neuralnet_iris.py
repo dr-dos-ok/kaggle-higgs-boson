@@ -4,8 +4,8 @@ import neuralnet as nn
 
 import bkputils, sys
 
-VELOCITY_DECAY = 0.99
-LEARNING_RATE = 0.01
+VELOCITY_DECAY = 0.9
+LEARNING_RATE = 0.001
 BATCH_SIZE = 1
 
 def z_score(col):
@@ -24,9 +24,9 @@ feature_cols = ["SepalLength", "SepalWidth", "PetalLength", "PetalWidth"]
 zscore_cols = ["z" + col for col in feature_cols]
 output_cols = ["is_setosa", "is_versicolor", "is_virginica"]
 
-iris["is_setosa"] = (iris["Name"] == "Iris-setosa").astype(np.float64)
-iris["is_versicolor"] = (iris["Name"] == "Iris-versicolor").astype(np.float64)
-iris["is_virginica"] = (iris["Name"] == "Iris-virginica").astype(np.float64)
+iris["is_setosa"] = (iris["Name"] == "Iris-setosa").astype(np.float64) * 2.0 - 1.0
+iris["is_versicolor"] = (iris["Name"] == "Iris-versicolor").astype(np.float64) * 2.0 - 1.0
+iris["is_virginica"] = (iris["Name"] == "Iris-virginica").astype(np.float64) * 2.0 - 1.0
 
 zscores = z_scores(iris[feature_cols])
 zscores.columns = zscore_cols

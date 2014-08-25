@@ -40,7 +40,7 @@ class TestFunctions(TestCase):
 		inputs = np.array([-10.0, -2.0, -1.0, 0.0, 1.0, 2.0, 10.0])
 		log = 1.0 / (1.0 + np.exp(-inputs))
 		expected = log * (1.0 - log)
-		actual = nn.logistic_deriv(inputs)
+		actual = nn.logistic_deriv(None, log)
 		assert_array_equal(expected, actual)
 
 	def test_flatten_lists_of_arrays(self):
@@ -100,7 +100,7 @@ class TestFunctions(TestCase):
 class TestFeedForwardNet(TestCase):
 
 	def test_forward(self):
-		net = nn.FeedForwardNet([5, 3, 1])
+		net = nn.FeedForwardNet([5, 3, 1], sigmoid_fn_pair=nn.LOGISTIC_FN_PAIR)
 		weights = net.weights = [
 			1.0 / np.array([
 				[1.0, 2.0, 3.0],
@@ -135,7 +135,7 @@ class TestFeedForwardNet(TestCase):
 			expit(layer_inputs) for layer_inputs in expected_activations
 		]
 
-		outputs, activations = net.forward(inputs, outputs=nn.DEBUGGING_OUTPUTS)
+		activations, outputs = net.forward(inputs, outputs=nn.ALL_LAYER_INPUTS_AND_OUTPUTS)
 
 		assert_array_equal(
 			inputs,
@@ -305,7 +305,7 @@ class TestFeedForwardNet(TestCase):
 		###
 		# make net that we're actually going to test with neuralnet/nn package
 		###
-		net = nn.FeedForwardNet(layer_sizes)
+		net = nn.FeedForwardNet(layer_sizes, sigmoid_fn_pair=nn.LOGISTIC_FN_PAIR)
 		net.weights = weights
 		net.bias_weights = bias_weights
 
@@ -389,9 +389,9 @@ class TestFeedForwardNet(TestCase):
 		)
 
 	def test_backprop_manual(self):
-		"""some numbers that I came up with by hand, once"""
+		"""some numbers that I came up with by hand, once upon a time"""
 
-		net = nn.FeedForwardNet([2, 2, 1])
+		net = nn.FeedForwardNet([2, 2, 1], sigmoid_fn_pair=nn.LOGISTIC_FN_PAIR)
 		net.weights = [
 			np.array([
 				[1.9, 2.1],
@@ -411,8 +411,8 @@ class TestFeedForwardNet(TestCase):
 		inputs = np.array([0, 1])
 		expected = np.array([1.0])
 
-		layer_outputs, layer_inputs = net.forward(inputs, outputs=nn.DEBUGGING_OUTPUTS)
-		layer_input_derivs, layer_output_derivs, weight_derivs, bias_derivs = net.get_partial_derivs(inputs, expected, outputs=nn.DEBUGGING_OUTPUTS)
+		layer_inputs, layer_outputs = net.forward(inputs, outputs=nn.ALL_LAYER_INPUTS_AND_OUTPUTS)
+		layer_input_derivs, layer_output_derivs, weight_derivs, bias_derivs = net.get_partial_derivs(inputs, expected, outputs=nn.ALL_DERIVS_AND_WEIGHTS)
 
 		expected_layer_outputs = [
 			np.array([0, 1]),
@@ -433,6 +433,11 @@ class TestFeedForwardNet(TestCase):
 			np.array([[ 0.09480353, -0.09480353]]),
 			np.array([[-0.39626957]])
 		]
+
+		# nn.printl("expected_layer_output_derivs", expected_layer_output_derivs)
+		# nn.printl("layer_output_derivs", layer_output_derivs)
+		# print "===================="
+
 		self.assert_list_of_arrays_almost_equal(expected_layer_output_derivs, layer_output_derivs)
 
 		expected_layer_input_derivs = [
@@ -440,6 +445,11 @@ class TestFeedForwardNet(TestCase):
 			np.array([[ 0.01863951, -0.02027939]]),
 			np.array([[-0.09480353]])
 		]
+
+		# nn.printl("expected_layer_input_derivs", expected_layer_input_derivs)
+		# nn.printl("layer_input_derivs", layer_input_derivs)
+		# exit()
+
 		self.assert_list_of_arrays_almost_equal(expected_layer_input_derivs, layer_input_derivs)
 
 		expected_weight_derivs = [

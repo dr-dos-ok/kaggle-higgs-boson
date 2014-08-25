@@ -24,7 +24,7 @@ for 2 reasons:
 
 import math
 
-class LogisticNeuron(object):
+class SigmoidNeuron(object):
 	def __init__(self):
 		self.upper_connections = []
 		self.lower_connections = []
@@ -42,7 +42,7 @@ class LogisticNeuron(object):
 		self.input = s
 
 	def calc_output(self):
-		self.output = 1.0 / (1.0 + math.exp(-self.input))
+		raise Exception("Please implement this in a proper subclass")
 
 	def calc_derror_by_doutput(self):
 		result = 0.0
@@ -51,8 +51,7 @@ class LogisticNeuron(object):
 		self.derror_by_doutput = result
 
 	def calc_derror_by_dinput(self):
-		y = self.output
-		self.derror_by_dinput = y * (1 - y) * self.derror_by_doutput
+		raise Exception("Please implement this in a proper subclass")
 
 	def forward_pass(self):
 		self.calc_input()
@@ -61,6 +60,26 @@ class LogisticNeuron(object):
 	def backprop(self):
 		self.calc_derror_by_doutput()
 		self.calc_derror_by_dinput()
+
+
+class LogisticNeuron(SigmoidNeuron):
+	#override
+	def calc_output(self):
+		self.output = 1.0 / (1.0 + math.exp(-self.input))
+
+	#override
+	def calc_derror_by_dinput(self):
+		y = self.output
+		self.derror_by_dinput = y * (1 - y) * self.derror_by_doutput
+
+class TanhNeuron(SigmoidNeuron):
+	#override
+	def calc_output(self):
+		self.output = math.tanh(self.input)
+
+	#override
+	def calc_derror_by_dinput(self):
+		self.derror_by_dinput = 1.0 - (self.output * self.output) * self.derror_by_doutput
 
 class InputNeuron(object):
 	def __init__(self, value=None):

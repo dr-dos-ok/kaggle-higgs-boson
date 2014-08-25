@@ -15,23 +15,37 @@ def adjacent_pairs(a):
 	for i in range(len(a)-1):
 		yield (a[i], a[i+1])
 
-def logistic_deriv(x):
+def logistic_deriv(x, y):
 	"""
-	Calculate the derivative of the logistic function at each
-	value of a numpy.ndarray
+	x: the actual x-values that we're dealing with (numpy.ndarray)
+	y: sigmoid(x) (numpy.ndarray).
+		This is just a convenience parameter; we could just calculate
+		y ourselves from x, but we know it already will have been calculated
+		by the time we get here so we may as well save some computation and
+		just pass it. Useful because a lot of sigmoid derivatives (logistic, tanh)
+		have very simple definitions that only depend on y
 
 	If the logistic function is y = 1.0 / (1.0 + exp(x))
 	then the derivative of that function can be written as:
 	y' = y * (1 - y)
 	"""
-	log = scipy.special.expit(x)
-	return log * (1 - log)
+	return y * (1.0 - y)
 
 LOGISTIC_FN_PAIR = (scipy.special.expit, logistic_deriv)
 
-def tanh_deriv(x):
-	tanhs = np.tanh(x)
-	return 1.0 - (tanhs * tanhs)
+def tanh_deriv(x, y):
+	"""
+	x: the actual x-values that we're dealing with (numpy.ndarray)
+	y: sigmoid(x) (numpy.ndarray).
+		This is just a convenience parameter; we could just calculate
+		y ourselves from x, but we know it already will have been calculated
+		by the time we get here so we may as well save some computation and
+		just pass it. Useful because a lot of sigmoid derivatives (logistic, tanh)
+		have very simple definitions that only depend on y
+
+	The derivative of y = tanh(x) is y' = 1.0 - y**2
+	"""
+	return 1.0 - (y * y)
 
 TANH_FN_PAIR = (np.tanh, tanh_deriv)
 
@@ -135,11 +149,12 @@ def printl(name, larray):
 		print arr
 	print
 
-NORMAL_OUTPUTS = 0
-DEBUGGING_OUTPUTS = 1
-ALL_LAYER_OUTPUTS = 2
+LAST_LAYER_OUTPUTS = 0
+ALL_LAYER_INPUTS_AND_OUTPUTS = 1
 
-FLATTENED_OUTPUTS = 3
+LISTS_OF_WEIGHTS = 0
+FLATTENED_WEIGHTS = 1
+ALL_DERIVS_AND_WEIGHTS = 2
 
 _ONE = np.ones(1)
 
@@ -148,7 +163,7 @@ class FeedForwardNet(object):
 	def __init__(
 		self,
 		layer_sizes,
-		sigmoid_fn_pair=LOGISTIC_FN_PAIR,
+		sigmoid_fn_pair=TANH_FN_PAIR,
 		err_fn=squared_error
 	):
 		"""
@@ -161,7 +176,7 @@ class FeedForwardNet(object):
 		a sigmoid function and its derivative respectively. They are
 		both assumed to take in a numpy.ndarray of floats and return
 		the same. Default is
-		neuralnet.LOGISTIC_FN_PAIR (scipy.special.expit, neuralnet.logistic_deriv)
+		neuralnet.TANH_FN_PAIR (numpy.tanh, neuralnet.tanh_deriv)
 
 		err_fn: (optional) a function that calculates the error between
 		the output of this network and the expected output of a training
@@ -186,7 +201,7 @@ class FeedForwardNet(object):
 			for bottom, top in adjacent_pairs(layer_sizes)
 		]
 
-	def forward(self, inputs, outputs=NORMAL_OUTPUTS):
+	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
 		"""
 		Run the inputs through this FeedForward network in the standard
 		normal direction.
@@ -222,12 +237,10 @@ class FeedForwardNet(object):
 			layer_inputs[layer_index] += self.bias_weights[layer_index]
 			layer_outputs[layer_index] = self.sigmoid(layer_inputs[layer_index])
 
-		if outputs == NORMAL_OUTPUTS:
+		if outputs == LAST_LAYER_OUTPUTS:
 			return layer_outputs[-1]
-		elif outputs == DEBUGGING_OUTPUTS:
-			return (layer_outputs, layer_inputs)
-		elif outputs == ALL_LAYER_OUTPUTS:
-			return layer_outputs
+		elif outputs == ALL_LAYER_INPUTS_AND_OUTPUTS:
+			return (layer_inputs, layer_outputs)
 		else:
 			raise Exception("Unrecognized value of 'outputs' in FeedForwardNet.forward()")
 
@@ -266,7 +279,7 @@ class FeedForwardNet(object):
 		"""
 		return np.zeros(sum_sizes([self.weights, self.bias_weights[1:]]))
 
-	def get_partial_derivs(self, test_case_inputs, test_case_actuals, outputs=NORMAL_OUTPUTS):
+	def get_partial_derivs(self, test_case_inputs, test_case_actuals, outputs=LISTS_OF_WEIGHTS):
 		"""
 		Given a single test case and expected outputs for that test case, calculate the
 		partial derivatives of the error with respect to the weights of the network.
@@ -292,7 +305,7 @@ class FeedForwardNet(object):
 		if test_case_inputs.ndim == 1:
 			test_case_inputs = test_case_inputs.reshape(1,-1)
 
-		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
+		layer_inputs, layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_INPUTS_AND_OUTPUTS)
 
 		#init python arrays to appropriate length
 		#we'll fill with ndarrays presently
@@ -304,8 +317,9 @@ class FeedForwardNet(object):
 		layer_output_derivs[-1] = derror_by_doutput
 
 		for layer_index in range(self.nlayers-1, 0, -1):
-			y = layer_outputs[layer_index]
-			layer_input_derivs[layer_index] = y * (1.0 - y) * layer_output_derivs[layer_index]
+			layer_input_derivs[layer_index] = \
+				self.sigmoid_deriv(layer_inputs[layer_index], layer_outputs[layer_index]) \
+				* layer_output_derivs[layer_index]
 
 			layer_output_derivs[layer_index-1] = np.dot(
 				layer_input_derivs[layer_index],
@@ -327,9 +341,9 @@ class FeedForwardNet(object):
 			for index, weights in enumerate(self.bias_weights[1:])
 		]
 
-		if outputs == NORMAL_OUTPUTS:
+		if outputs == LISTS_OF_WEIGHTS:
 			return (weight_derivs, [None] + raw_bias_weight_derivs)
-		elif outputs == FLATTENED_OUTPUTS:
+		elif outputs == FLATTENED_WEIGHTS:
 			return flatten_lists_of_arrays(weight_derivs, raw_bias_weight_derivs)
-		elif outputs == DEBUGGING_OUTPUTS:
+		elif outputs == ALL_DERIVS_AND_WEIGHTS:
 			return (layer_input_derivs, layer_output_derivs, weight_derivs, [None] + raw_bias_weight_derivs)
