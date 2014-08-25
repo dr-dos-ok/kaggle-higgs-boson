@@ -15,18 +15,6 @@ def adjacent_pairs(a):
 	for i in range(len(a)-1):
 		yield (a[i], a[i+1])
 
-def logistic(x):
-	"""
-	Calculate the logistic function for each element in a
-	numpy.ndarray.
-	http://en.wikipedia.org/wiki/Logistic_function
-
-	Note: this eventually became a simple wrapper for
-	scipy.special.expit which does the same thing
-	http://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.special.expit.html
-	"""
-	return scipy.special.expit(x)
-
 def logistic_deriv(x):
 	"""
 	Calculate the derivative of the logistic function at each
@@ -36,8 +24,16 @@ def logistic_deriv(x):
 	then the derivative of that function can be written as:
 	y' = y * (1 - y)
 	"""
-	log = logistic(x)
+	log = scipy.special.expit(x)
 	return log * (1 - log)
+
+LOGISTIC_FN_PAIR = (scipy.special.expit, logistic_deriv)
+
+def tanh_deriv(x):
+	tanhs = np.tanh(x)
+	return 1.0 - (tanhs * tanhs)
+
+TANH_FN_PAIR = (np.tanh, tanh_deriv)
 
 def squared_error(actuals, expected):
 	"""
@@ -152,7 +148,7 @@ class FeedForwardNet(object):
 	def __init__(
 		self,
 		layer_sizes,
-		sigmoid_fn_pair=(logistic, logistic_deriv),
+		sigmoid_fn_pair=LOGISTIC_FN_PAIR,
 		err_fn=squared_error
 	):
 		"""
@@ -164,7 +160,8 @@ class FeedForwardNet(object):
 		sigmoid_fn_pair: (optional) a 2-tuple of functions representing
 		a sigmoid function and its derivative respectively. They are
 		both assumed to take in a numpy.ndarray of floats and return
-		the same. Default is (neuralnet.logistic, neuralnet.logistic_deriv)
+		the same. Default is
+		neuralnet.LOGISTIC_FN_PAIR (scipy.special.expit, neuralnet.logistic_deriv)
 
 		err_fn: (optional) a function that calculates the error between
 		the output of this network and the expected output of a training
