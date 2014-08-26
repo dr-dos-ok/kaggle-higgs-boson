@@ -6,7 +6,7 @@ from scipy.special import expit
 import neuralnet as nn
 import neurons
 
-np.random.seed(9)
+# np.random.seed(9)
 
 class TestCase(unittest.TestCase):
 	def assert_list_of_arrays_equal(self, la1, la2):
@@ -36,14 +36,14 @@ class TestFunctions(TestCase):
 		inputs = np.array([-10.0, -2.0, -1.0, 0.0, 1.0, 2.0, 10.0])
 		log = 1.0 / (1.0 + np.exp(-inputs))
 		expected = log * (1.0 - log)
-		actual = nn.logistic_deriv(None, log)
+		actual = nn.logistic_deriv(inputs, log)
 		assert_array_equal(expected, actual)
 
 	def test_tanh_deriv(self):
 		inputs = np.array([-10.0, -2.0, -1.0, 0.0, 1.0, 2.0, 10.0])
 		y = np.tanh(inputs)
 		expected = 1.0 - y**2
-		actual = nn.tanh_deriv(None, y)
+		actual = nn.tanh_deriv(inputs, y)
 		assert_array_equal(expected, actual)
 
 	def test_flatten_lists_of_arrays(self):
@@ -337,6 +337,10 @@ class TestFeedForwardNet(TestCase):
 		)
 
 	def test_multiple_rows_forward(self):
+		"""
+		test that passing a matrix of [nsamples, nfeatures]
+		produces a sensible output of [nsamples, noutputs]
+		"""
 		rows = np.array([
 			[1,2,3,4,5],
 			[6,7,8,9,0]
