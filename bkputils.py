@@ -5,8 +5,14 @@ import sqlite3, sys, time, math, signal
 _write_time_stack = []
 def write(s):
 	global _write_time_stack
+
+	prefix = ""
+	if len(_write_time_stack) > 0:
+		prefix = "\n"
+		prefix += "\t" * len(_write_time_stack)
+	
 	_write_time_stack.append(time.time())
-	sys.stdout.write(s+"...")
+	sys.stdout.write(prefix + s + "...")
 	sys.stdout.flush()
 
 def writeDone(elapsed=None):

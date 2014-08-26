@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import scipy.special
 import math
 
@@ -347,3 +348,56 @@ class FeedForwardNet(object):
 			return flatten_lists_of_arrays(weight_derivs, raw_bias_weight_derivs)
 		elif outputs == ALL_DERIVS_AND_WEIGHTS:
 			return (layer_input_derivs, layer_output_derivs, weight_derivs, [None] + raw_bias_weight_derivs)
+
+class ZFeedForwardNet(FeedForwardNet):
+	"""
+	Subclass of FeedForwardNet that automatically transforms columns to zscores before
+	running the net.
+
+	Instead of expecting a numpy.ndarray, this class generally expects a pandas.DataFrame
+	as an input to all of its methods. It will convert to numpy.ndarray before delegating
+	to superclass methods.
+
+	Internally this class will filter out any columns that have a standard deviation of 0.0
+	so as to avoid nan's when calculating the z-score. It will re-calculate the number of 
+	input columns if necessary. This should all be transparent to external classes, who
+	can pass 0-stddev columns without worry.
+	"""
+
+	# IMPLEMENTATION NOTE:
+	# There is no need to override get get_partial_derivs() in this subclass. The method
+	# get_partial_derivs() uses forward() in such a way that overriding forward() is
+	# sufficient for the functionality we need.
+
+	def __init__(
+		self,
+		dataframe,
+		available_cols,
+		layer_sizes,
+		sigmoid_fn_pair=TANH_FN_PAIR,
+		err_fn=squared_error
+	):
+		subdf = dataframe[available_cols]
+		self.stddevs = subdf.std()
+		self.means = subdf.mean()
+
+		#filter columns that have no variance; causes nan's later on when we
+		#divide
+		available_cols = [col for col in available_cols if self.stddevs[col] != 0.0]
+		self.stddevs = self.stddevs[available_cols]
+		self.means = self.means[available_cols]
+		self.available_cols = available_cols
+
+		#re-calculate input layer; may have changed
+		layer_sizes[0] = len(available_cols)
+
+		super(ZFeedForwardNet, self).__init__(layer_sizes, sigmoid_fn_pair, err_fn)
+
+	def to_zscores(self, dataframe):
+		#expect pandas.DataFrame, return numpy.ndarray
+		return ((dataframe[self.available_cols] - self.means) / self.stddevs).values
+
+	#override
+	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
+		inputs = self.to_zscores(inputs)
+		return super(ZFeedForwardNet, self).forward(inputs, outputs)
