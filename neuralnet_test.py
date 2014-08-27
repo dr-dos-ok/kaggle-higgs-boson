@@ -469,6 +469,16 @@ class TestFeedForwardNet(TestCase):
 		]
 		self.assert_list_of_arrays_allclose(expected_bias_derivs, bias_derivs)
 
+	def test_save_and_load(self):
+		net1 = nn.FeedForwardNet([3, 5, 2])
+		out1 = net1.forward(np.ones(3))
+		net1.save_weights("test_net1.nn")
+
+		net2 = nn.FeedForwardNet([1, 1])
+		net2.load_weights("test_net1.nn")
+		out2 = net2.forward(np.ones(3))
+
+		assert_array_equal(out1, out2)
 
 class TestNeurons(unittest.TestCase):
 	def test_neuron(self):

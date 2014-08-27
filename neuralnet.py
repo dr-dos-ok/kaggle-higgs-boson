@@ -346,6 +346,57 @@ class FeedForwardNet(object):
 		elif outputs == ALL_DERIVS_AND_WEIGHTS:
 			return (layer_input_derivs, layer_output_derivs, weight_derivs, [None] + raw_bias_weight_derivs)
 
+	def save_weights(self, filename):
+		"""
+		Save off the weights (and biases) of this neural net. Note that this also
+		implicitly saves off the layer sizes.
+
+		Note: at the moment save_weights is the best way I have to save a neural network
+		to disk. Saving the entire network would require also saving off the sigmoid,
+		sigmoid_deriv, and err_fn functions, which I currently don't have a good way to do.
+		"""
+		with open(filename, "wb") as f:
+			np.save(f, np.array(self.layer_sizes))
+			np.save(f, self.get_flattened_weights())
+
+	def load_weights(self, filename, check_layer_sizes=False):
+		"""
+		Load weights (and biases) from a file created using save_weights().
+
+		Saved off weights implicitly have a layer-size structure associated with
+		them. The parameter check_layer_sizes specifies how to behave if the layer
+		sizes of the loaded weights don't match the current layer sizes:
+		check_layer_sizes=False (default) - overwrite current layer sizes with
+		loaded layer sizes
+		check_layer_sizes=True - raise an Exception if current layer_sizes don't
+		match the loaded layer sizes
+
+		Note: at the moment save_weights is the best way I have to save a neural network
+		to disk. Saving the entire network would require also saving off the sigmoid,
+		sigmoid_deriv, and err_fn functions, which I currently don't have a good way to do.
+		"""
+
+		with open(filename, "rb") as f:
+			layer_sizes = list(np.load(f))
+			if check_layer_sizes and (not np.array_equal(self.layer_sizes, layer_sizes)):
+				raise Exception("Loaded weights not equal to current weights")
+
+			self.layer_sizes = layer_sizes
+			self.nlayers = len(layer_sizes)
+
+			#re-init weight & bias sizes so that set_flattened_weights
+			#will be working from the correct sizes
+			self.weights = [
+				np.empty((bottom, top))
+				for bottom, top in adjacent_pairs(layer_sizes)
+			]
+			self.bias_weights = [None] + [
+				np.empty(top)
+				for bottom, top in adjacent_pairs(layer_sizes)
+			]
+
+			self.set_flattened_weights(np.load(f))
+
 class ZFeedForwardNet(FeedForwardNet):
 	"""
 	Subclass of FeedForwardNet that automatically transforms columns to zscores before

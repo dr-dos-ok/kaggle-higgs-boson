@@ -72,3 +72,5 @@ dde_imgs/
 dde_pairs/
 
 pynn_example.py
+
+*.nn
