@@ -3,25 +3,37 @@ import numpy as np
 import sqlite3, sys, time, math, signal
 
 _write_time_stack = []
+_last_call_was_write = None
 def write(s):
-	global _write_time_stack
+	global _write_time_stack, _last_call_was_write
 
 	prefix = ""
 	if len(_write_time_stack) > 0:
-		prefix = "\n"
+		if _last_call_was_write:
+			prefix += "\n"
 		prefix += "\t" * len(_write_time_stack)
-	
+
 	_write_time_stack.append(time.time())
 	sys.stdout.write(prefix + s + "...")
 	sys.stdout.flush()
 
+	_last_call_was_write = True
+
 def writeDone(elapsed=None):
+	global _last_call_was_write
+
 	fmt = "Done - %s"
 	if elapsed == None:
 		global _write_time_stack
 		elapsed = time.time() - _write_time_stack.pop()
-		fmt = " (%s)" % fmt
+		if _last_call_was_write:
+			fmt = " (%s)" % fmt
+		else:
+			fmt = ("\t" * len(_write_time_stack)) + fmt
+
 	print fmt % fmtTime(elapsed)
+
+	_last_call_was_write = False
 
 def fmtTime(secs):
 

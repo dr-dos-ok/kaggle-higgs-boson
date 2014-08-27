@@ -8,8 +8,6 @@ from colswitch import ColSwitchClassifier
 
 import time, zipfile, random, sys
 
-global_start = time.time()
-
 TRAIN_LIMIT = None
 TEST_LIMIT = None
 CSV_OUTPUT_FILE = "neuralnet.csv"
@@ -18,7 +16,7 @@ ZIP_OUTPUT_FILE = CSV_OUTPUT_FILE + ".zip"
 BATCH_SIZE = 100
 LEARNING_RATE = 0.001
 VELOCITY_DECAY = 0.99
-ITERATIONS = 100
+ITERATIONS = 1000
 
 HIDDEN_LAYER_SIZES = [1000]
 
@@ -46,7 +44,7 @@ def build_znet_classifier(col_flag, available_cols, dataframe):
 	write("training net for {0:b}".format(col_flag))
 	train(net, col_flag, available_cols, dataframe)
 	writeDone()
-	return net
+	return ZNetClassifier(net)
 
 def train(net, col_flag, available_cols, dataframe):
 	global BATCH_SIZE, LEARNING_RATE, VELOCITY_DECAY, ITERATIONS
@@ -54,7 +52,7 @@ def train(net, col_flag, available_cols, dataframe):
 	weights = net.get_flattened_weights()
 	velocity = net.zeros_like_flattened_weights()
 	index = 0
-	print
+	# print
 	for iteration in xrange(ITERATIONS):
 		batch_indices = random.sample(dataframe.index, min(BATCH_SIZE, dataframe.shape[0]))
 		batch = dataframe.ix[batch_indices]
@@ -70,49 +68,33 @@ def train(net, col_flag, available_cols, dataframe):
 		weights += velocity
 		net.set_flattened_weights(weights)
 
-		if index % 10 == 0:
-			forward = net.forward(dataframe[available_cols])
+		# if index % 10 == 0:
+		# 	forward = net.forward(dataframe[available_cols])
 
-			errs, err_derivs = nn.squared_error(
-				forward,
-				dataframe[["train_feature"]].values
-			)
-			avgerr = np.mean(errs)
-			sys.stdout.write("err: %1.9f\r" % (avgerr))
-			sys.stdout.flush()
-	print
+		# 	errs, err_derivs = nn.squared_error(
+		# 		forward,
+		# 		dataframe[["train_feature"]].values
+		# 	)
+		# 	avgerr = np.mean(errs)
+		# 	sys.stdout.write("err: %1.9f\r" % (avgerr))
+		# 	sys.stdout.flush()
+	# print
 
-	forward = net.forward(dataframe[available_cols])
-	predict_vals = np.array(["b", "s"])
-	s_predictions = predict_vals[(forward > 0.0).ravel().astype(np.int8)]
-	print "ams: %f" % (ams(s_predictions, dataframe))
+	# forward = net.forward(dataframe[available_cols])
+	# predict_vals = np.array(["b", "s"])
+	# s_predictions = predict_vals[(forward > 0.0).ravel().astype(np.int8)]
+	# print "ams: %f" % (ams(s_predictions, dataframe))
 
-# def score_df(df):
-# 	global feature_cols
-# 	df["row_col_flags"] = colflags.calc_col_flags(df, feature_cols)
-# 	df["Class"] = ["MONKEY"] * df.shape[0]
-# 	df["confidence"] = ["MONKEY"] * df.shape[0]
-# 	for col_flags, group in df.groupby("row_col_flags"):
-# 		if col_flags in comparator_set_lookup:
-# 			comparator_set = comparator_set_lookup[col_flags]
-# 			class_, confidence = comparator_set.classify(group)
-# 			df["Class"][group.index] = class_
-# 			df["confidence"][group.index] = confidence
-# 	df = df.sort("confidence")
-# 	df["RankOrder"] = range(1, df.shape[0] + 1)
-# 	df = df.sort("EventId")
-# 	return df
+class ZNetClassifier(object):
+	def __init__(self, znet):
+		self.znet = znet
 
-def score_df(df):
-	raise Exception("Not Finished")
-	# global feature_cols, col_flags_lookup, net_lookup
-
-	# df["row_col_flags"] = colflags.calc_col_flags(df, feature_cols)
-	# df["Class"] = ["-"] * df.shape[0]
-	# df["confidence"] = np.empty(df.shape[0])
-
-	# for col_flags, group in df.groupby("row_col_flags"):
-	# 	if col_flags in col_flags_lookup:
+	def classify(self, dataframe):
+		score = self.znet.forward(dataframe)
+		options = np.array(["b", "s"])
+		classes = options[(score > 0.0).astype(np.int).ravel()]
+		confidence = score ** 2
+		return (classes, confidence)
 
 print "TRAIN_LIMIT:", TRAIN_LIMIT
 print "TEST_LIMIT:", TEST_LIMIT
@@ -124,13 +106,14 @@ print "ITERATIONS:", ITERATIONS
 print "HIDDEN_LAYER_SIZES:", HIDDEN_LAYER_SIZES
 print
 
+write("running neural network classifier")
+
 write("loading training data")
 traindata = loadTrainingData(TRAIN_LIMIT * 4 if TRAIN_LIMIT is not None else TRAIN_LIMIT)
 traindata = traindata[:TRAIN_LIMIT]
 feature_cols = featureCols(only_float64=True)
 writeDone()
-print "	num rows:", traindata.shape[0]
-print
+print "\t\tnum rows:", traindata.shape[0]
 
 write("massaging training data")
 traindata["train_feature"] = np.ones(traindata.shape[0])
@@ -139,4 +122,27 @@ writeDone()
 
 write("building classifier")
 classifier = ColSwitchClassifier(traindata, feature_cols, build_znet_classifier)
+writeDone()
+
+write("loading test data")
+testdata = loadTestData(TEST_LIMIT)
+writeDone()
+
+write("classifying test data")
+# profile.run("testdata = score_df(testdata)")
+class_, confidence = classifier.classify(testdata)
+testdata["Class"] = class_
+testdata["confidence"] = confidence
+testdata = testdata.sort("confidence")
+testdata["RankOrder"] = range(1, testdata.shape[0] + 1)
+testdata = testdata.sort("EventId")
+writeDone()
+
+write("writing output")
+testdata[["EventId", "RankOrder", "Class"]].to_csv(CSV_OUTPUT_FILE, header=True, index=False)
+zf = zipfile.ZipFile(ZIP_OUTPUT_FILE, "w", zipfile.ZIP_DEFLATED)
+zf.write(CSV_OUTPUT_FILE)
+zf.close()
+writeDone()
+
 writeDone()

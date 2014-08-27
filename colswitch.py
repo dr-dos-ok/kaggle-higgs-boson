@@ -62,10 +62,11 @@ class ColSwitchClassifier(object):
 		for col_flag, group in dataframe.groupby(row_col_flags):
 			if col_flag in self.lookup:
 				classifier = self.lookup[col_flag]
-				class_, confidence = comparator.classify(group)
+				class_, confidence = classifier.classify(group)
 				if is_first:
 					all_classes = np.empty(dataframe.shape[0], dtype=class_.dtype)
 					all_confidences = np.empty(dataframe.shape[0], dtype=np.float)
+					is_first = False
 				all_classes[group.index] = class_
 				all_confidences[group.index] = confidence
 			else:
