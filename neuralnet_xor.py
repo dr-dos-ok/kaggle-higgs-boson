@@ -55,7 +55,7 @@ while not bkputils.is_cancelled():
 	grad = net.get_partial_derivs(
 		inputs,
 		output,
-		outputs=nn.FLATTENED_OUTPUTS
+		outputs=nn.FLATTENED_WEIGHTS
 	)
 
 	sqerr = np.mean((xor[:,[2]] - net.forward(xor[:,[0,1]]))**2)

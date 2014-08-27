@@ -80,14 +80,6 @@ def squared_error(actuals, expected):
 		diffs # derror_by_doutput
 	)
 
-def quadratic_error(actuals, expected):
-
-	diffs = actuals - expected
-	return (
-		np.sum(diffs**4, axis=1),
-		-4.0 * (diffs**3)
-	)
-
 def normalize_vector(vec):
 	"""
 	Normalize any vector to a unit vector by dividing by its
@@ -205,19 +197,17 @@ class FeedForwardNet(object):
 	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
 		"""
 		Run the inputs through this FeedForward network in the standard
-		normal direction.
+		forward direction.
 
-		Setting outputs=NORMAL_OUTPUTS (default) will return the outputs
+		Setting outputs=LAST_LAYER_OUTPUTS (default) will return the outputs
 		of the final layer of the network.
 
-		Setting outputs=DEBUGGING_OUTPUTS will return a tuple of
-		(layer_outputs, layer_inputs) where layer outputs is a list
-		of numpy.ndarray representing the outputs of every neuron at
-		every layer of the network. layer_inputs is similar, and of the
-		same shape, but contains the inputs to each neuron in the net
-
-		Setting outputs=ALL_LAYER_OUTPUTS will return layer_outputs as
-		described in the section for outputs=DEBUGGING_OUTPUTS
+		Setting outputs=ALL_LAYER_INPUTS_AND_OUTPUTS will return a tuple of
+		(layer_inputs, layer_outputs) where layer_inputs is a list
+		of numpy.ndarray representing the inputs of every neuron at
+		every layer of the network. layer_outputs is similar, and of the
+		same shape, but contains the outputs to each neuron in the net (after
+		sigmoid activation)
 		"""
 		
 		#sum of inputs (first layer will be ignored)
@@ -280,27 +270,34 @@ class FeedForwardNet(object):
 		"""
 		return np.zeros(sum_sizes([self.weights, self.bias_weights[1:]]))
 
-	def get_partial_derivs(self, test_case_inputs, test_case_actuals, outputs=LISTS_OF_WEIGHTS):
+	def get_partial_derivs(self, test_case_inputs, test_case_outputs, outputs=LISTS_OF_WEIGHTS):
 		"""
-		Given a single test case and expected outputs for that test case, calculate the
-		partial derivatives of the error with respect to the weights of the network.
-
-		Alternately, given a matrix of test cases (test cases are rows), calculate the average
-		partial derivatives of each weight over the entire passed set of cases
+		Given a matrix of training cases (rows are training cases, columns are features) and
+		a matrix of expected output values for each training case (same matrix structure),
+		compute the partial derivative of the error with respect to each weight and bias weight
+		for each training case. Return the average partial derivatives for each weight and bias
+		in the network.
 
 		Internally this method implements the backpropagation algorithm to calculate the
-		weights.
+		partial error derivatives.
 		http://en.wikipedia.org/wiki/Backpropagation
 		https://class.coursera.org/neuralnets-2012-001/lecture/39
 
-		If outputs=NORMAL_OUTPUTS (default) is specified, a tuple of
+		If outputs=LISTS_OF_WEIGHTS (default) is specified, a tuple of
 		(weight_derivs, bias_weight_derivs) is returned where each item is a list of
 		numpy.ndarray. The shape and order of weight_derivs will be identical to that
-		of self.weights and similarly bias_weight_derivs will match up to self.bias_weights
+		of self.weights and similarly bias_weight_derivs will match up to self.bias_weights.
+		Note that, like self.bias_weights, the first element of bias_weight_derivs will
+		be None because there are no biases computed for the input layer.
 
-		If outputs=FLATTENED_OUTPUTS is specified, the outputs will be a 1D
+		If outputs=FLATTENED_WEIGHTS is specified, the outputs will be a 1D
 		numpy.ndarray that is compatible with the 1D arrays used by the other
 		flattened_weights methods available in this class
+
+		If outputs=ALL_DERIVS_AND_WEIGHTS is specified a tuple of
+		(layer_input_derivs, layer_output_derivs, weight_derivs, bias_weight_derivs)
+		is returned. This "numeric diarrhea mode" is mostly only useful for unit tests
+		and other debugging purposes.
 		"""
 
 		if test_case_inputs.ndim == 1:
@@ -314,7 +311,7 @@ class FeedForwardNet(object):
 		layer_input_derivs = [None] * len(self.layer_sizes)
 		weight_derivs = [None] * len(self.layer_sizes - 1)
 
-		err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_actuals)
+		err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_outputs)
 		layer_output_derivs[-1] = derror_by_doutput
 
 		for layer_index in range(self.nlayers-1, 0, -1):

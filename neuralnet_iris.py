@@ -32,10 +32,7 @@ zscores = z_scores(iris[feature_cols])
 zscores.columns = zscore_cols
 iris[zscore_cols] = zscores
 
-net = nn.FeedForwardNet(
-	[len(feature_cols), 5, len(output_cols)],
-	err_fn=nn.quadratic_error
-)
+net = nn.FeedForwardNet([len(feature_cols), 5, len(output_cols)])
 
 errs, err_dervs = nn.squared_error(
 	net.forward(iris[zscore_cols].values),
@@ -53,7 +50,7 @@ while not bkputils.is_cancelled():
 	avg_grad = net.get_partial_derivs(
 		batch[zscore_cols].values,
 		batch[output_cols].values,
-		outputs=nn.FLATTENED_OUTPUTS
+		outputs=nn.FLATTENED_WEIGHTS
 	)
 	
 	velocity *= VELOCITY_DECAY
