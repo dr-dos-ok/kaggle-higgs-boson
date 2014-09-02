@@ -1,5 +1,6 @@
 import unittest
 import numpy as np
+import pandas as pd
 from numpy.testing import *
 from scipy.special import expit
 
@@ -470,13 +471,27 @@ class TestFeedForwardNet(TestCase):
 		self.assert_list_of_arrays_allclose(expected_bias_derivs, bias_derivs)
 
 	def test_save_and_load(self):
-		net1 = nn.FeedForwardNet([3, 5, 2])
+		net1 = nn.FeedForwardNet([3,5,2])
 		out1 = net1.forward(np.ones(3))
-		net1.save_weights("test_net1.nn")
+		net1.save("test_net1.nn")
 
-		net2 = nn.FeedForwardNet([1, 1])
-		net2.load_weights("test_net1.nn")
+		net2 = nn.FeedForwardNet.load("test_net1.nn")
 		out2 = net2.forward(np.ones(3))
+
+		assert_array_equal(out1, out2)
+
+	def test_save_and_load_znet(self):
+		starting_df = pd.DataFrame(
+			np.random.random((10, 3)) + 10.0
+		)
+		inputs = np.random.random(3) + 10.0
+
+		net1 = nn.ZFeedForwardNet(starting_df, [0,1,2], [-1,5,2])
+		out1 = net1.forward(inputs)
+		net1.save("test_net1.znn")
+
+		net2 = nn.FeedForwardNet.load("test_net1.znn")
+		out2 = net2.forward(inputs)
 
 		assert_array_equal(out1, out2)
 
@@ -527,7 +542,6 @@ class TestNeurons(unittest.TestCase):
 			hidden_neuron.forward_pass()
 		for output_neuron in output_layer:
 			output_neuron.forward_pass()
-
 
 		expected_activations = [
 			np.empty(6),
