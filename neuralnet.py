@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import cPickle as pickle
 import scipy.special
 import math
 
@@ -143,7 +144,8 @@ def printl(name, larray):
 	print
 
 LAST_LAYER_OUTPUTS = 0
-ALL_LAYER_INPUTS_AND_OUTPUTS = 1
+ALL_LAYER_OUTPUTS = 1
+ALL_LAYER_INPUTS_AND_OUTPUTS = 2
 
 LISTS_OF_WEIGHTS = 0
 FLATTENED_WEIGHTS = 1
@@ -202,6 +204,9 @@ class FeedForwardNet(object):
 		Setting outputs=LAST_LAYER_OUTPUTS (default) will return the outputs
 		of the final layer of the network.
 
+		Setting outputs=ALL_LAYER_OUTPUTS will return a list of ndarrays
+		representing the outputs from each layer
+
 		Setting outputs=ALL_LAYER_INPUTS_AND_OUTPUTS will return a tuple of
 		(layer_inputs, layer_outputs) where layer_inputs is a list
 		of numpy.ndarray representing the inputs of every neuron at
@@ -210,28 +215,41 @@ class FeedForwardNet(object):
 		sigmoid activation)
 		"""
 		
-		#sum of inputs (first layer will be ignored)
-		layer_inputs = [None] * len(self.layer_sizes)
+		return_all_layer_inputs = (outputs == ALL_LAYER_INPUTS_AND_OUTPUTS)
+		return_all_layer_outputs = (
+			outputs == ALL_LAYER_INPUTS_AND_OUTPUTS or
+			outputs == ALL_LAYER_OUTPUTS
+		)
 
-		#after sigmoid function
-		layer_outputs = [None] * len(self.layer_sizes)
+		if return_all_layer_inputs:
+			all_layer_inputs = [None] * len(self.layer_sizes)
+		if return_all_layer_outputs:
+			all_layer_outputs = [None] * len(self.layer_sizes)
 
-		#set input as output of first layer
-		layer_outputs[0] = inputs.copy()
+		layer_outputs = inputs
+		if return_all_layer_outputs:
+			all_layer_outputs[0] = layer_outputs
 
 		for prev_layer_index, layer_index in adjacent_pairs(range(self.nlayers)):
-			layer_inputs[layer_index] = np.dot(
-				layer_outputs[prev_layer_index],
+			layer_inputs = np.dot(
+				layer_outputs, # from prev layer
 				self.weights[prev_layer_index]
 			)
+			layer_inputs += self.bias_weights[layer_index]
+			if return_all_layer_inputs:
+				all_layer_inputs[layer_index] = layer_inputs
 
-			layer_inputs[layer_index] += self.bias_weights[layer_index]
-			layer_outputs[layer_index] = self.sigmoid(layer_inputs[layer_index])
+			layer_outputs = self.sigmoid(layer_inputs)
+
+			if return_all_layer_outputs:
+				all_layer_outputs[layer_index] = layer_outputs
 
 		if outputs == LAST_LAYER_OUTPUTS:
-			return layer_outputs[-1]
+			return layer_outputs
+		elif outputs == ALL_LAYER_OUTPUTS:
+			return all_layer_outputs
 		elif outputs == ALL_LAYER_INPUTS_AND_OUTPUTS:
-			return (layer_inputs, layer_outputs)
+			return (all_layer_inputs, all_layer_outputs)
 		else:
 			raise Exception("Unrecognized value of 'outputs' in FeedForwardNet.forward()")
 
@@ -303,20 +321,26 @@ class FeedForwardNet(object):
 		if test_case_inputs.ndim == 1:
 			test_case_inputs = test_case_inputs.reshape(1,-1)
 
-		layer_inputs, layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_INPUTS_AND_OUTPUTS)
+		#memory-saving hack: we should really pass outputs=ALL_LAYER_INPUTS_AND_OUTPUTS
+		#and then pass layer_inputs to self.sigmoid_deriv as well, but none of the
+		#currently implemented sigmoids (tanh, logistic) require the x values so
+		#we should save some memory by not even retrieving them
+		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
 
 		#init python arrays to appropriate length
 		#we'll fill with ndarrays presently
 		layer_output_derivs = [None] * len(self.layer_sizes)
 		layer_input_derivs = [None] * len(self.layer_sizes)
-		weight_derivs = [None] * len(self.layer_sizes - 1)
 
 		err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_outputs)
 		layer_output_derivs[-1] = derror_by_doutput
 
 		for layer_index in range(self.nlayers-1, 0, -1):
+			#memory-saving hack: none of the sigmoids currently in use require
+			#the input (x) values. Only the output (y) values are needed, so 
+			#don't even bother keeping the inputs in memory (can be large)
 			layer_input_derivs[layer_index] = \
-				self.sigmoid_deriv(layer_inputs[layer_index], layer_outputs[layer_index]) \
+				self.sigmoid_deriv(None, layer_outputs[layer_index]) \
 				* layer_output_derivs[layer_index]
 
 			layer_output_derivs[layer_index-1] = np.dot(
@@ -346,56 +370,14 @@ class FeedForwardNet(object):
 		elif outputs == ALL_DERIVS_AND_WEIGHTS:
 			return (layer_input_derivs, layer_output_derivs, weight_derivs, [None] + raw_bias_weight_derivs)
 
-	def save_weights(self, filename):
-		"""
-		Save off the weights (and biases) of this neural net. Note that this also
-		implicitly saves off the layer sizes.
-
-		Note: at the moment save_weights is the best way I have to save a neural network
-		to disk. Saving the entire network would require also saving off the sigmoid,
-		sigmoid_deriv, and err_fn functions, which I currently don't have a good way to do.
-		"""
+	def save(self, filename):
 		with open(filename, "wb") as f:
-			np.save(f, np.array(self.layer_sizes))
-			np.save(f, self.get_flattened_weights())
+			pickle.dump(self, f)
 
-	def load_weights(self, filename, check_layer_sizes=False):
-		"""
-		Load weights (and biases) from a file created using save_weights().
-
-		Saved off weights implicitly have a layer-size structure associated with
-		them. The parameter check_layer_sizes specifies how to behave if the layer
-		sizes of the loaded weights don't match the current layer sizes:
-		check_layer_sizes=False (default) - overwrite current layer sizes with
-		loaded layer sizes
-		check_layer_sizes=True - raise an Exception if current layer_sizes don't
-		match the loaded layer sizes
-
-		Note: at the moment save_weights is the best way I have to save a neural network
-		to disk. Saving the entire network would require also saving off the sigmoid,
-		sigmoid_deriv, and err_fn functions, which I currently don't have a good way to do.
-		"""
-
+	@staticmethod
+	def load(filename):
 		with open(filename, "rb") as f:
-			layer_sizes = list(np.load(f))
-			if check_layer_sizes and (not np.array_equal(self.layer_sizes, layer_sizes)):
-				raise Exception("Loaded weights not equal to current weights")
-
-			self.layer_sizes = layer_sizes
-			self.nlayers = len(layer_sizes)
-
-			#re-init weight & bias sizes so that set_flattened_weights
-			#will be working from the correct sizes
-			self.weights = [
-				np.empty((bottom, top))
-				for bottom, top in adjacent_pairs(layer_sizes)
-			]
-			self.bias_weights = [None] + [
-				np.empty(top)
-				for bottom, top in adjacent_pairs(layer_sizes)
-			]
-
-			self.set_flattened_weights(np.load(f))
+			return pickle.load(f)
 
 class ZFeedForwardNet(FeedForwardNet):
 	"""
