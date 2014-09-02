@@ -53,7 +53,12 @@ _SIGINT_CAUGHT = False
 def handle_sigint(signal, frame):
 	global _SIGINT_CAUGHT
 	_SIGINT_CAUGHT = True
-signal.signal(signal.SIGINT, handle_sigint)
+
+def capture_sigint():
+	signal.signal(signal.SIGINT, handle_sigint)
+
+def uncapture_sigint():
+	signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 def is_cancelled():
 	return _SIGINT_CAUGHT
@@ -67,10 +72,14 @@ def dbConn():
 
 _trainingData = None
 _trainingDataLoaded = False
-def loadTrainingData(numRows=None):
+def loadTrainingData(numRows=None, col_flag=None, col_flag_str=None):
 	global _trainingData, _trainingDataLoaded
 	if not _trainingDataLoaded:
 		sql = "SELECT * FROM training"
+		if col_flag is not None:
+			sql += " WHERE col_flag = " + str(col_flag) #too lazy to use parametrized queries; not worried about sql injection here, lol :)
+		if col_flag_str is not None:
+			sql += " WHERE col_flag_str = '{0}'".format(col_flag_str)
 		if numRows != None:
 			sql += " LIMIT %d" % numRows
 		_trainingData = pd.read_sql(sql, dbConn())
@@ -138,6 +147,23 @@ def print_timers():
 		total_seconds += seconds
 		print "%s:	%s" % (name, fmtTime(seconds))
 	print "TOTAL:	%s" % fmtTime(total_seconds)
+
+def ams(predictions, actual_df):
+	predicted_signal = predictions == "s"
+	actual_signal = actual_df["Label"] == "s"
+	actual_background = ~actual_signal
+
+	s = true_positives = np.sum(actual_df[predicted_signal & actual_signal]["Weight"])
+	b = false_positives = np.sum(actual_df[predicted_signal & actual_background]["Weight"])
+	B_R = 10.0
+
+	radicand = 2.0 * ((s+b+B_R) * math.log(1.0 + (s/(b+B_R))) - s)
+
+	if radicand < 0.0:
+		print "radicand is less than 0, exiting"
+		exit()
+	else:
+		return math.sqrt(radicand)
 
 if __name__ == "__main__":
 	print fmtTime(1.23)
