@@ -245,11 +245,9 @@ class FeedForwardNet(object):
 
 		#init weight matrices with small random weights (be sure to use [:] to copy
 		#values instead of creating a reference to a new matrix)
-		for weight in self._weights:
-			weight[:] = np.random.random(weight.shape)
-		for weight in self._bias_weights[1:]:
-			weight[:] = np.random.random(weight.shape)
-
+		for index, (bottom, top) in enumerate(adjacent_pairs(layer_sizes)):
+			self._weights[index][:] = (2.0 * (np.random.random((bottom, top)) - 0.5)) / math.sqrt(bottom+1)
+			self._bias_weights[index+1][:] = (2.0 * (np.random.random(top) - 0.5)) / math.sqrt(bottom+1)
 
 		hidden_fn, hidden_deriv = hidden_fn_pair
 		output_fn, output_deriv = output_fn_pair
