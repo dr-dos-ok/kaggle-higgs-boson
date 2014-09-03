@@ -602,10 +602,6 @@ class TestFeedForwardNet(TestCase):
 			layer_input_derivs[1:]
 		)
 
-		# nn.printl("expected_layer_input_derivs", expected_layer_input_derivs)
-		# nn.printl("layer_input_derivs", layer_input_derivs)
-		# exit()
-
 		assert_allclose(
 			expected_weight_derivs[0],
 			weight_partial_derivs[0]
