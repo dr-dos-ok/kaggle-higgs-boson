@@ -146,26 +146,46 @@ def flatten_lists_of_arrays(*lists):
 			start = stop
 	return result
 
-def unflatten_to_lists_of_arrays(flattened, *outputs):
-	"""
-	This function is intended to be the inverse of flatten_lists_of_arrays(*lists)
+# def unflatten_to_lists_of_arrays(flattened, *outputs):
+# 	"""
+# 	This function is intended to be the inverse of flatten_lists_of_arrays(*lists)
 
-	Given a 1D numpy.ndarray and an arbitrary number of parameters that are
-	lists of numpy.ndarray, fill each ndarray in order from the contents of the
-	1D array.
+# 	Given a 1D numpy.ndarray and an arbitrary number of parameters that are
+# 	lists of numpy.ndarray, fill each ndarray in order from the contents of the
+# 	1D array.
 
-	This function requires you to initialize and pass the arrays to be filled
-	so as to avoid requiring you to pass a complicated object specifying the
-	sizes of the nested lists and ndarrays. It is assumed that
-	flattened.size == sum_sizes(outputs), but no checking is done to
-	verify that.
-	"""
+# 	This function requires you to initialize and pass the arrays to be filled
+# 	so as to avoid requiring you to pass a complicated object specifying the
+# 	sizes of the nested lists and ndarrays. It is assumed that
+# 	flattened.size == sum_sizes(outputs), but no checking is done to
+# 	verify that.
+# 	"""
+# 	start = 0
+# 	for outlist in outputs:
+# 		for ndarray in outlist:
+# 			stop = start + ndarray.size
+# 			ndarray.ravel()[:] = flattened[start:stop]
+# 			start = stop
+
+def unflatten_weights(flattened_weights, layer_sizes):
+	weights = []
+	bias_weights = [None] # None signifies that first layer has no biases
+
 	start = 0
-	for outlist in outputs:
-		for ndarray in outlist:
-			stop = start + ndarray.size
-			ndarray.ravel()[:] = flattened[start:stop]
-			start = stop
+	for bottom, top in adjacent_pairs(layer_sizes):
+		size = bottom * top
+		stop = start + size
+		weight_matrix = flattened_weights[start:stop].reshape((bottom, top))
+		weights.append(weight_matrix)
+		start = stop
+
+	for layer_size in layer_sizes[1:]: # skip first layer; no biases
+		stop = start + layer_size
+		bias_matrix = flattened_weights[start:stop]
+		bias_weights.append(bias_matrix)
+		start = stop
+
+	return (weights, bias_weights)
 
 def printl(name, larray):
 	print name
@@ -216,21 +236,26 @@ class FeedForwardNet(object):
 
 		self.layer_sizes = np.array(layer_sizes)
 		self.nlayers = nlayers = len(layer_sizes)
+		self.nweights = sum([(bottom * top + top) for bottom, top in adjacent_pairs(layer_sizes)])
+		
+		#create the "one ndarray to rule them all" and then slice it up into
+		#individual weight matrices that can actually be used
+		self.flattened_weights = self.empty_like_flattened_weights()
+		self._weights, self._bias_weights = unflatten_weights(self.flattened_weights, self.layer_sizes)
+
+		#init weight matrices with small random weights (be sure to use [:] to copy
+		#values instead of creating a reference to a new matrix)
+		for weight in self._weights:
+			weight[:] = np.random.random(weight.shape)
+		for weight in self._bias_weights[1:]:
+			weight[:] = np.random.random(weight.shape)
+
 
 		hidden_fn, hidden_deriv = hidden_fn_pair
 		output_fn, output_deriv = output_fn_pair
 
 		self.layer_sigmoids = [None] + ([hidden_fn] * (nlayers-2)) + [output_fn]
 		self.layer_sigmoid_derivs = [None] + ([hidden_deriv] * (nlayers-2)) + [output_deriv]
-
-		self.weights = [
-			(2.0 * (np.random.random((bottom, top)) - 0.5)) / math.sqrt(bottom+1)
-			for bottom, top in adjacent_pairs(layer_sizes)
-		]
-		self.bias_weights = [None] + [
-			(2.0 * (np.random.random(top) - 0.5)) / math.sqrt(bottom+1)
-			for bottom, top in adjacent_pairs(layer_sizes)
-		]
 
 	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
 		"""
@@ -269,9 +294,9 @@ class FeedForwardNet(object):
 		for prev_layer_index, layer_index in adjacent_pairs(range(self.nlayers)):
 			layer_inputs = np.dot(
 				layer_outputs, # from prev layer
-				self.weights[prev_layer_index]
+				self._weights[prev_layer_index]
 			)
-			layer_inputs += self.bias_weights[layer_index]
+			layer_inputs += self._bias_weights[layer_index]
 			if return_all_layer_inputs:
 				all_layer_inputs[layer_index] = layer_inputs
 
@@ -289,6 +314,12 @@ class FeedForwardNet(object):
 		else:
 			raise Exception("Unrecognized value of 'outputs' in FeedForwardNet.forward()")
 
+	def set_weights(self, new_weights, new_bias_weights):
+		for _weight, weight in zip(self._weights, new_weights):
+			_weight[:] = weight
+		for _bias_weight, bias_weight in zip(self._bias_weights[1:], new_bias_weights[1:]):
+			_bias_weight[:] = bias_weight
+
 	def get_flattened_weights(self):
 		"""
 		Return a 1D numpy.ndarray that represents the flattened weights of this
@@ -299,7 +330,8 @@ class FeedForwardNet(object):
 		that you can apply element-wise operations in a meaningful way (e.g. you can
 		add two flattened weight arrays to get the sum of the weights)
 		"""
-		return flatten_lists_of_arrays(self.weights, self.bias_weights[1:])
+		# return flatten_lists_of_arrays(self.weights, self.bias_weights[1:])
+		return self.flattened_weights
 
 	def set_flattened_weights(self, flattened_weights):
 		"""
@@ -310,7 +342,8 @@ class FeedForwardNet(object):
 		that you can apply element-wise operations in a meaningful way (e.g. you can
 		add two flattened weight arrays to get the sum of the weights)
 		"""
-		unflatten_to_lists_of_arrays(flattened_weights, self.weights, self.bias_weights[1:])
+		self.flattened_weights[:] = flattened_weights
+		# unflatten_to_lists_of_arrays(flattened_weights, self.weights, self.bias_weights[1:])
 
 	def zeros_like_flattened_weights(self):
 		"""
@@ -322,7 +355,13 @@ class FeedForwardNet(object):
 		that you can apply element-wise operations in a meaningful way (e.g. you can
 		add two flattened weight arrays to get the sum of the weights)
 		"""
-		return np.zeros(sum_sizes([self.weights, self.bias_weights[1:]]))
+		return np.zeros(self.nweights)
+
+	def empty_like_flattened_weights(self):
+		return np.empty(self.nweights)
+
+	def ones_like_flattened_weights(self):
+		return np.ones(self.nweights)
 
 	def get_partial_derivs(self, test_case_inputs, test_case_outputs, outputs=LISTS_OF_WEIGHTS):
 		"""
@@ -381,29 +420,25 @@ class FeedForwardNet(object):
 
 			layer_output_derivs[layer_index-1] = np.dot(
 				layer_input_derivs[layer_index],
-				self.weights[layer_index-1].T
+				self._weights[layer_index-1].T
 			)
 
-		weight_derivs = [
-			np.dot(layer_outputs[index].T, layer_input_derivs[index+1]) / layer_outputs[index].shape[0]
-			for index, weights in enumerate(self.weights)
-		]
+		flattened_weight_derivs = self.empty_like_flattened_weights()
+		weight_derivs, bias_weight_derivs = unflatten_weights(flattened_weight_derivs, self.layer_sizes)
 
-		#I usually like to keep a None as the first element so that the indices match
-		#up, and to indicate that there are no biases on the first/input layer. However,
-		#leaving out the None for a moment makes certain things easier in a sec
-		#(flatten_lists_of_arrays doesn't work with None's)
-		raw_bias_weight_derivs = [
-			np.mean(layer_input_derivs[index+1], axis=0)
-			for index, weights in enumerate(self.bias_weights[1:])
-		]
+		for index in xrange(len(self._weights)):
+			weight_derivs[index][:] = np.dot(layer_outputs[index].T, layer_input_derivs[index+1]) / layer_outputs[index].shape[0]
+
+		for index in xrange(len(self._bias_weights[1:])):
+			index += 1 # because we skipped the first layer
+			bias_weight_derivs[index][:] = np.mean(layer_input_derivs[index], axis=0)
 
 		if outputs == LISTS_OF_WEIGHTS:
-			return (weight_derivs, [None] + raw_bias_weight_derivs)
+			return (weight_derivs, bias_weight_derivs)
 		elif outputs == FLATTENED_WEIGHTS:
-			return flatten_lists_of_arrays(weight_derivs, raw_bias_weight_derivs)
+			return flattened_weight_derivs
 		elif outputs == ALL_DERIVS_AND_WEIGHTS:
-			return (layer_input_derivs, layer_output_derivs, weight_derivs, [None] + raw_bias_weight_derivs)
+			return (layer_input_derivs, layer_output_derivs, weight_derivs, bias_weight_derivs)
 
 	def save(self, filename):
 		with open(filename, "wb") as f:
