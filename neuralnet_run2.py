@@ -25,9 +25,9 @@ def make_isnull_cols(dataframe):
 		feature_cols.append(newname)
 		dataframe[newname] = (dataframe[col] == -999.0).astype(np.int8)
 
-def make_trainfeature_col(dataframe):
-	dataframe["train_feature"] = np.ones(dataframe.shape[0])
-	dataframe.loc[dataframe["Label"]=="b", "train_feature"] = -1
+def make_trainfeature_cols(dataframe):
+	dataframe["train_s"] = (dataframe["Label"] == "s").astype(np.int)
+	dataframe["train_b"] = (dataframe["Label"] == "b").astype(np.int)
 
 write("building full-dataset classifier")
 
@@ -39,7 +39,8 @@ writeDone()
 
 write("creating custom features on traindata")
 make_isnull_cols(traindata)
-make_trainfeature_col(traindata)
+make_trainfeature_cols(traindata)
+output_cols = ["train_s", "train_b"]
 writeDone()
 
 if os.path.exists(NET_SAVE_FILE):
@@ -49,7 +50,7 @@ if os.path.exists(NET_SAVE_FILE):
 	writeDone()
 else:
 	write("training new net")
-	net = nn.ZFeedForwardNet(traindata, feature_cols, [-1, 1000, 100, 1])
+	net = nn.ZFeedForwardNet(traindata, feature_cols, output_cols, [-1, 1000, 1000, -1])
 	min_err = train(net, traindata, learning_rate=0.01, velocity_decay=0.99)
 	writeDone()
 
@@ -63,7 +64,7 @@ predictions, confidence = classifier.classify(traindata)
 score = ams(predictions, traindata)
 writeDone()
 print "\t\tpredicted ams: {0}".format(score)
-print "\t\tmin squared err: " + (str(min_err) if min_err is not None else "(unknown)")
+print "\t\tmin {0}: {1}".format(net.err_fn.__name__, (str(min_err) if min_err is not None else "(unknown)"))
 traindata = None # may help garbage collection free up some memory
 
 write("loading test data")
@@ -77,7 +78,7 @@ writeDone()
 write("classifying test data")
 # profile.run("testdata = score_df(testdata)")
 classes = np.empty(testdata.shape[0], dtype=np.dtype("S1"))
-confidences = np.empty((testdata.shape[0], 1), dtype=np.float64)
+confidences = np.empty(testdata.shape[0], dtype=np.float64)
 chunks = np.array_split(testdata, 5)
 start = 0
 for chunk in chunks:

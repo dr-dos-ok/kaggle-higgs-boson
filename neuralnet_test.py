@@ -477,7 +477,7 @@ class TestFeedForwardNet(TestCase):
 		)
 		inputs = np.random.random(3) + 10.0
 
-		net1 = nn.ZFeedForwardNet(starting_df, [0,1,2], [-1,5,2])
+		net1 = nn.ZFeedForwardNet(starting_df, [0,1,2], [], [-1,5,2])
 		out1 = net1.forward(inputs)
 		net1.save("test_net1.znn")
 

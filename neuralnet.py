@@ -437,25 +437,29 @@ class ZFeedForwardNet(FeedForwardNet):
 	def __init__(
 		self,
 		dataframe,
-		available_cols,
+		input_cols,
+		output_cols,
 		layer_sizes,
 		hidden_fn_pair=TANH_FN_PAIR,
 		output_fn_pair=TANH_FN_PAIR,
 		err_fn=squared_error
 	):
-		subdf = dataframe[available_cols]
+		subdf = dataframe[input_cols]
 		self.stddevs = subdf.std()
 		self.means = subdf.mean()
 
 		#filter columns that have no variance; causes nan's later on when we
 		#divide
-		available_cols = [col for col in available_cols if self.stddevs[col] != 0.0]
-		self.stddevs = self.stddevs[available_cols]
-		self.means = self.means[available_cols]
-		self.available_cols = available_cols
+		input_cols = [col for col in input_cols if self.stddevs[col] != 0.0]
+		self.stddevs = self.stddevs[input_cols]
+		self.means = self.means[input_cols]
+		self.input_cols = input_cols
+
+		self.output_cols = output_cols
 
 		#re-calculate input layer; may have changed
-		layer_sizes[0] = len(available_cols)
+		layer_sizes[0] = len(input_cols)
+		layer_sizes[-1] = len(output_cols)
 
 		super(ZFeedForwardNet, self).__init__(
 			layer_sizes,
@@ -466,9 +470,16 @@ class ZFeedForwardNet(FeedForwardNet):
 
 	def to_zscores(self, dataframe):
 		#expect pandas.DataFrame, return numpy.ndarray
-		return ((dataframe[self.available_cols] - self.means) / self.stddevs).values
+		return ((dataframe[self.input_cols] - self.means) / self.stddevs).values
 
 	#override
 	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
 		inputs = self.to_zscores(inputs)
 		return super(ZFeedForwardNet, self).forward(inputs, outputs)
+
+	def get_partial_derivs(self, dataframe, outputs=LISTS_OF_WEIGHTS):
+		return super(ZFeedForwardNet, self).get_partial_derivs(
+			dataframe[self.input_cols],
+			dataframe[self.output_cols],
+			outputs=outputs
+		)

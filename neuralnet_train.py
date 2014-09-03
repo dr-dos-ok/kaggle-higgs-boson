@@ -93,9 +93,9 @@ def train(net, alldata, learning_rate=0.01, velocity_decay=0.9, batch_size=100, 
 	return best_error
 
 def get_err(net, df):
-	errs = nn.squared_error(
+	errs, __ = net.err_fn(
 		net.forward(df),
-		df[["train_feature"]].values
+		df[["train_s", "train_b"]].values
 	)
 	return np.mean(errs)
 
