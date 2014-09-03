@@ -51,6 +51,17 @@ def tanh_deriv(x, y):
 
 TANH_FN_PAIR = (np.tanh, tanh_deriv)
 
+def softmax(x):
+	e = np.exp(x)
+	return e / np.sum(e)
+
+def softmax_deriv(x, y):
+	#if you think this looks exactly like logistic_deriv you're not wrong
+	#I have no idea why/how that's true but apparently it is
+	return y * (1.0 - y)
+
+SOFTMAX_FN_PAIR = (softmax, softmax_deriv)
+
 def squared_error(actuals, expected):
 	"""
 	Given a 1D numpy.ndarray of calculated values and a same-sized
@@ -79,6 +90,25 @@ def squared_error(actuals, expected):
 	return (
 		0.5 * np.sum(diffs * diffs, axis=1), # error
 		diffs # derror_by_doutput
+	)
+
+def cross_entropy_error(actuals, expected):
+	"""
+	Best used for classification problems where the output layer is a softmax
+
+	cross entropy error:
+	-sum(t * log(y))
+	this is equivalent to the negative log of the expected answer; since this is a classification
+	problem it is expected that all t's will be 0 except for one, so the only thing to come out
+	of that sum will be the log of the y where we're expecting that 1
+
+	partial derivs:
+	-t / y
+	"""
+
+	return (
+		-np.sum(expected * np.log(actuals)),
+		-expected / actuals
 	)
 
 def normalize_vector(vec):
@@ -158,7 +188,8 @@ class FeedForwardNet(object):
 	def __init__(
 		self,
 		layer_sizes,
-		sigmoid_fn_pair=TANH_FN_PAIR,
+		hidden_fn_pair=TANH_FN_PAIR,
+		output_fn_pair=TANH_FN_PAIR,
 		err_fn=squared_error
 	):
 		"""
@@ -181,11 +212,16 @@ class FeedForwardNet(object):
 		respectively. The default value is neuralnet.squared_error
 		"""
 
-		self.sigmoid, self.sigmoid_deriv = sigmoid_fn_pair
-		self.err_fn = squared_error
+		self.err_fn = err_fn
 
 		self.layer_sizes = np.array(layer_sizes)
-		self.nlayers = len(layer_sizes)
+		self.nlayers = nlayers = len(layer_sizes)
+
+		hidden_fn, hidden_deriv = hidden_fn_pair
+		output_fn, output_deriv = output_fn_pair
+
+		self.layer_sigmoids = [None] + ([hidden_fn] * (nlayers-2)) + [output_fn]
+		self.layer_sigmoid_derivs = [None] + ([hidden_deriv] * (nlayers-2)) + [output_deriv]
 
 		self.weights = [
 			(2.0 * (np.random.random((bottom, top)) - 0.5)) / math.sqrt(bottom+1)
@@ -239,7 +275,7 @@ class FeedForwardNet(object):
 			if return_all_layer_inputs:
 				all_layer_inputs[layer_index] = layer_inputs
 
-			layer_outputs = self.sigmoid(layer_inputs)
+			layer_outputs = self.layer_sigmoids[layer_index](layer_inputs)
 
 			if return_all_layer_outputs:
 				all_layer_outputs[layer_index] = layer_outputs
@@ -340,7 +376,7 @@ class FeedForwardNet(object):
 			#the input (x) values. Only the output (y) values are needed, so 
 			#don't even bother keeping the inputs in memory (can be large)
 			layer_input_derivs[layer_index] = \
-				self.sigmoid_deriv(None, layer_outputs[layer_index]) \
+				self.layer_sigmoid_derivs[layer_index](None, layer_outputs[layer_index]) \
 				* layer_output_derivs[layer_index]
 
 			layer_output_derivs[layer_index-1] = np.dot(
@@ -350,7 +386,6 @@ class FeedForwardNet(object):
 
 		weight_derivs = [
 			np.dot(layer_outputs[index].T, layer_input_derivs[index+1]) / layer_outputs[index].shape[0]
-			# layer_outputs[index] * np.mean(layer_input_derivs[index+1], axis=0)
 			for index, weights in enumerate(self.weights)
 		]
 
@@ -404,7 +439,8 @@ class ZFeedForwardNet(FeedForwardNet):
 		dataframe,
 		available_cols,
 		layer_sizes,
-		sigmoid_fn_pair=TANH_FN_PAIR,
+		hidden_fn_pair=TANH_FN_PAIR,
+		output_fn_pair=TANH_FN_PAIR,
 		err_fn=squared_error
 	):
 		subdf = dataframe[available_cols]
@@ -421,7 +457,12 @@ class ZFeedForwardNet(FeedForwardNet):
 		#re-calculate input layer; may have changed
 		layer_sizes[0] = len(available_cols)
 
-		super(ZFeedForwardNet, self).__init__(layer_sizes, sigmoid_fn_pair, err_fn)
+		super(ZFeedForwardNet, self).__init__(
+			layer_sizes,
+			hidden_fn_pair=hidden_fn_pair,
+			output_fn_pair=output_fn_pair,
+			err_fn=err_fn
+		)
 
 	def to_zscores(self, dataframe):
 		#expect pandas.DataFrame, return numpy.ndarray

@@ -79,40 +79,7 @@ class TanhNeuron(SigmoidNeuron):
 
 	#override
 	def calc_derror_by_dinput(self):
-		self.derror_by_dinput = 1.0 - (self.output * self.output) * self.derror_by_doutput
-
-class InputNeuron(object):
-	def __init__(self, value=None):
-		self.output = value
-		self.upper_connections = []
-
-	def add_upper_connection(self, connection):
-		self.upper_connections.append(connection)
-
-	def set_value(self, value):
-		self.output = value
-
-	def calc_derror_by_doutput(self):
-		result = 0.0
-		for connection in self.upper_connections:
-			result += connection.weight * connection.upper_neuron.derror_by_dinput
-		self.derror_by_doutput = result
-
-class SquaredErrorOutputNeuron(LogisticNeuron):
-	def __init__(self):
-		super(SquaredErrorOutputNeuron, self).__init__()
-		self.upper_connections = None
-
-	def set_expected_value(self, value):
-		self.expected_value = value
-
-	#override
-	def calc_derror_by_doutput(self):
-		self.derror_by_doutput = self.output - self.expected_value
-
-	#override
-	def add_upper_connection(self):
-		raise Exception("You probably shouldn't do this from an output neuron")
+		self.derror_by_dinput = (1.0 - (self.output * self.output)) * self.derror_by_doutput
 
 class BiasNeuron(object):
 
@@ -134,6 +101,154 @@ class BiasNeuron(object):
 
 	def backprop(self):
 		self.calc_derror_by_doutput()
+
+class InputNeuron(object):
+	def __init__(self, value=None):
+		self.output = value
+		self.upper_connections = []
+
+	def add_upper_connection(self, connection):
+		self.upper_connections.append(connection)
+
+	def set_value(self, value):
+		self.output = value
+
+	def calc_derror_by_doutput(self):
+		result = 0.0
+		for connection in self.upper_connections:
+			result += connection.weight * connection.upper_neuron.derror_by_dinput
+		self.derror_by_doutput = result
+
+class OutputNeuron(SigmoidNeuron):
+	def __init__(self):
+		super(OutputNeuron, self).__init__()
+		self.upper_connections = None
+
+	def set_expected_value(self, value):
+		self.expected_value = value
+
+	#override
+	def add_upper_connection(self):
+		raise Exception("You probably shouldn't do this from an output neuron")
+
+class SquaredErrorOutputNeuron(OutputNeuron):
+	#override
+	def calc_output(self):
+		#same as LogisticNeuron
+		self.output = 1.0 / (1.0 + math.exp(-self.input))
+
+	#override
+	def calc_derror_by_dinput(self):
+		#same as LogisticNeuron
+		y = self.output
+		self.derror_by_dinput = y * (1 - y) * self.derror_by_doutput
+
+	#override
+	def calc_derror_by_doutput(self):
+		self.derror_by_doutput = self.output - self.expected_value
+
+class SoftmaxOutputNeuron(OutputNeuron):
+	def __init__(self, softmax_layer):
+		super(SoftmaxOutputNeuron, self).__init__()
+		self.softmax_layer = softmax_layer
+
+	def calc_input(self):
+		super(SoftmaxOutputNeuron, self).calc_input()
+		self.exp = math.exp(self.input)
+
+	#override
+	def calc_output(self):
+		self.output = self.exp / self.softmax_layer.partition_fn()
+
+	#override
+	def calc_derror_by_dinput(self):
+		#same as LogisticNeuron
+		y = self.output
+		self.derror_by_dinput = y * (1 - y) * self.derror_by_doutput
+
+	#override
+	def calc_derror_by_doutput(self):
+		#error for softmax neurons is cross-entropy error
+		# http://en.wikipedia.org/wiki/Cross_entropy
+		# https://class.coursera.org/neuralnets-2012-001/lecture/47
+		self.derror_by_doutput = (-self.expected_value) / self.output
+
+class NeuronLayer(object):
+	def __init__(self):
+		self.bias_neuron = BiasNeuron()
+
+	def forward_pass(self):
+		for neuron in self.neurons:
+			neuron.calc_input()
+		for neuron in self.neurons:
+			neuron.calc_output()
+
+	def backprop(self):
+		for neuron in self.neurons:
+			neuron.calc_derror_by_doutput()
+		for neuron in self.neurons:
+			neuron.calc_derror_by_dinput()
+		self.bias_neuron.calc_derror_by_doutput()
+
+	def connect_above(self, lower_layer, weights, bias_weights):
+		bias_neuron = self.bias_neuron
+		for upper_index, upper_neuron in enumerate(self.neurons):
+			for lower_index, lower_neuron in enumerate(lower_layer.neurons):
+				make_connection(lower_neuron, upper_neuron, weights[lower_index][upper_index])
+			make_connection(bias_neuron, upper_neuron, bias_weights[upper_index])
+
+	def calc_input_weight_derivs(self):
+		for neuron in self.neurons:
+			for weight in neuron.lower_connections:
+				weight.calc_derror_by_dweight()
+
+	def get_output_weight_derivs(self):
+		return [
+			[weight.derror_by_dweight for weight in neuron.upper_connections]
+			for neuron in self.neurons
+		]
+
+	def get_bias_weight_derivs(self):
+		return [weight.derror_by_dweight for weight in self.bias_neuron.upper_connections]
+
+class LogisticNeuronLayer(NeuronLayer):
+	def __init__(self, how_many):
+		super(LogisticNeuronLayer, self).__init__()
+		self.neurons = [LogisticNeuron() for i in range(how_many)]
+
+class TanhNeuronLayer(NeuronLayer):
+	def __init__(self, how_many):
+		super(TanhNeuronLayer, self).__init__()
+		self.neurons = [TanhNeuron() for i in range(how_many)]
+
+class InputNeuronLayer(NeuronLayer):
+	def __init__(self, how_many):
+		super(InputNeuronLayer, self).__init__()
+		self.neurons = [InputNeuron() for i in range(how_many)]
+
+	def set_inputs(self, inputs):
+		for index, neuron in enumerate(self.neurons):
+			neuron.set_value(inputs[index])
+
+class OutputNeuronLayer(NeuronLayer):
+	def set_expected_values(self, expected_values):
+		for index, neuron in enumerate(self.neurons):
+			neuron.set_expected_value(expected_values[index])
+
+class SquaredErrorOutputNeuronLayer(OutputNeuronLayer):
+	def __init__(self, how_many):
+		super(SquaredErrorOutputNeuronLayer, self).__init__()
+		self.neurons = [SquaredErrorOutputNeuron() for i in range(how_many)]
+
+class SoftmaxOutputNeuronLayer(OutputNeuronLayer):
+	def __init__(self, num_outputs):
+		super(SoftmaxOutputNeuronLayer, self).__init__()
+		self.neurons = [
+			SoftmaxOutputNeuron(self) for i in range(num_outputs)
+		]
+
+	def partition_fn(self):
+		return sum([neuron.exp for neuron in self.neurons])
 
 class NeuronConnection(object):
 	def __init__(self, lower_neuron, upper_neuron, weight):

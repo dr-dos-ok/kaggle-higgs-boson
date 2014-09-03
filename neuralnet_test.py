@@ -101,10 +101,28 @@ class TestFunctions(TestCase):
 			assert_array_equal(expected1[index], outlist1[index])
 			assert_array_equal(expected2[index], outlist2[index])
 
+	def test_softmax(self):
+		inputs = np.array([-10, -5, -1, 0, 1, 5, 10])
+		e = np.exp(inputs)
+		expected = e / np.sum(e)
+		outputs = nn.softmax(inputs)
+
+		assert_array_equal(expected, outputs)
+
+	def test_softmax_deriv(self):
+		inputs = np.array([-10, -5, -1, 0, 1, 5, 10])
+		e = np.exp(inputs)
+		softmax = e / np.sum(e)
+		expected = softmax * (1.0 - softmax)
+
+		outputs = nn.softmax_deriv(inputs, softmax)
+
+		assert_array_equal(expected, outputs)
+
 class TestFeedForwardNet(TestCase):
 
 	def test_forward(self):
-		net = nn.FeedForwardNet([5, 3, 1], sigmoid_fn_pair=nn.LOGISTIC_FN_PAIR)
+		net = nn.FeedForwardNet([5, 3, 1], hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_fn_pair=nn.LOGISTIC_FN_PAIR)
 		weights = net.weights = [
 			1.0 / np.array([
 				[1.0, 2.0, 3.0],
@@ -245,71 +263,44 @@ class TestFeedForwardNet(TestCase):
 		# Make validation net with neurons package
 		###
 
-		input_layer = [neurons.InputNeuron() for i in range(layer_sizes[0])]
-		input_bias = neurons.BiasNeuron()
-		hidden_layer = [neurons.LogisticNeuron() for i in range(layer_sizes[1])]
-		hidden_bias = neurons.BiasNeuron()
-		output_layer = [neurons.SquaredErrorOutputNeuron() for i in range(layer_sizes[2])]
+		input_layer = neurons.InputNeuronLayer(layer_sizes[0])
+		hidden_layer = neurons.LogisticNeuronLayer(layer_sizes[1])
+		output_layer = neurons.SquaredErrorOutputNeuronLayer(layer_sizes[2])
 
-		for hidden_index, hidden_neuron in enumerate(hidden_layer):
-			for input_index, input_neuron in enumerate(input_layer):
-				neurons.make_connection(input_neuron, hidden_neuron, weights[0][input_index][hidden_index])
-			neurons.make_connection(input_bias, hidden_neuron, bias_weights[1][hidden_index])
+		hidden_layer.connect_above(input_layer, weights[0], bias_weights[1])
+		output_layer.connect_above(hidden_layer, weights[1], bias_weights[2])
 
-		for output_index, output_neuron in enumerate(output_layer):
-			for hidden_index, hidden_neuron in enumerate(hidden_layer):
-				neurons.make_connection(hidden_neuron, output_neuron, weights[1][hidden_index][output_index])
-			neurons.make_connection(hidden_bias, output_neuron, bias_weights[2][output_index])
-
-		for index, input_neuron in enumerate(input_layer):
-			input_neuron.set_value(inputs[index])
+		input_layer.set_inputs(inputs)
 
 		#forward pass
-		for hidden_neuron in hidden_layer:
-			hidden_neuron.forward_pass()
-		for output_neuron in output_layer:
-			output_neuron.forward_pass()
+		hidden_layer.forward_pass()
+		output_layer.forward_pass()
 
 		#backprop
-
-		for output_index, output_neuron in enumerate(output_layer):
-			output_neuron.set_expected_value(expected_outputs[output_index])
-		for output_neuron in output_layer:
-			output_neuron.backprop()
-		for hidden_neuron in hidden_layer:
-			hidden_neuron.backprop()
-		hidden_bias.backprop()
+		output_layer.set_expected_values(expected_outputs)
+		output_layer.backprop()
+		hidden_layer.backprop()
 
 		#calc weight partial derivatives
-		for output_neuron in output_layer:
-			for weight in output_neuron.lower_connections:
-				weight.calc_derror_by_dweight()
-		for hidden_neuron in hidden_layer:
-			for weight in hidden_neuron.lower_connections:
-				weight.calc_derror_by_dweight()
+		output_layer.calc_input_weight_derivs()
+		hidden_layer.calc_input_weight_derivs()
 
 		#now go grab all of the calculated values
 		expected_weight_derivs = [
-			np.array([
-				[weight.derror_by_dweight for weight in input_neuron.upper_connections]
-				for input_neuron in input_layer
-			]),
-			np.array([
-				[weight.derror_by_dweight for weight in hidden_neuron.upper_connections]
-				for hidden_neuron in hidden_layer
-			])
+			np.array(input_layer.get_output_weight_derivs()),
+			np.array(hidden_layer.get_output_weight_derivs())
 		]
 
 		expected_bias_weight_derivs = [
 			None,
-			np.array([weight.derror_by_dweight for weight in input_bias.upper_connections]),
-			np.array([weight.derror_by_dweight for weight in hidden_bias.upper_connections])
+			np.array(hidden_layer.get_bias_weight_derivs()),
+			np.array(output_layer.get_bias_weight_derivs())
 		]
 
 		###
 		# make net that we're actually going to test with neuralnet/nn package
 		###
-		net = nn.FeedForwardNet(layer_sizes, sigmoid_fn_pair=nn.LOGISTIC_FN_PAIR)
+		net = nn.FeedForwardNet(layer_sizes, hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_fn_pair=nn.LOGISTIC_FN_PAIR)
 		net.weights = weights
 		net.bias_weights = bias_weights
 
@@ -399,7 +390,7 @@ class TestFeedForwardNet(TestCase):
 	def test_backprop_manual(self):
 		"""some numbers that I came up with by hand, once upon a time"""
 
-		net = nn.FeedForwardNet([2, 2, 1], sigmoid_fn_pair=nn.LOGISTIC_FN_PAIR)
+		net = nn.FeedForwardNet([2, 2, 1], hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_fn_pair=nn.LOGISTIC_FN_PAIR)
 		net.weights = [
 			np.array([
 				[1.9, 2.1],
@@ -494,6 +485,147 @@ class TestFeedForwardNet(TestCase):
 		out2 = net2.forward(inputs)
 
 		assert_array_equal(out1, out2)
+
+	def test_softmax(self):
+
+		layer_sizes = [2, 3, 2]
+		weights = [
+			np.array([
+				[0.1, 0.2, 0.3],
+				[-0.1, -0.2, -0.3]
+			]),
+			np.array([
+				[0.5, 0.5],
+				[0.5, -0.5],
+				[-0.5, 0.5]
+			])
+		]
+		bias_weights = [
+			None,
+			np.array([0.3, 0.2, 0.1]),
+			np.array([-0.5, -0.5])
+		]
+		inputs = np.array([1.0, -1.0])
+		target_outputs = np.array([1.0, 0.0])
+
+		###
+		# Make validation net with neurons package
+		###
+		input_layer = neurons.InputNeuronLayer(layer_sizes[0])
+		hidden_layer = neurons.TanhNeuronLayer(layer_sizes[1])
+		output_layer = neurons.SoftmaxOutputNeuronLayer(layer_sizes[2])
+
+		hidden_layer.connect_above(input_layer, weights[0], bias_weights[1])
+		output_layer.connect_above(hidden_layer, weights[1], bias_weights[2])
+
+		input_layer.set_inputs(inputs)
+
+		#forward pass
+		hidden_layer.forward_pass()
+		output_layer.forward_pass()
+
+		#backprop
+		output_layer.set_expected_values(target_outputs)
+		output_layer.backprop()
+		hidden_layer.backprop()
+
+		#calc weight partial derivatives
+		output_layer.calc_input_weight_derivs()
+		hidden_layer.calc_input_weight_derivs()
+
+		#now go grab all of the calculated values
+		expected_weight_derivs = [
+			np.array(input_layer.get_output_weight_derivs()),
+			np.array(hidden_layer.get_output_weight_derivs())
+		]
+
+		expected_bias_weight_derivs = [
+			None,
+			np.array(hidden_layer.get_bias_weight_derivs()),
+			np.array(output_layer.get_bias_weight_derivs())
+		]
+
+		expected_inputs = [
+			None,
+			[neuron.input for neuron in hidden_layer.neurons],
+			[neuron.input for neuron in output_layer.neurons]
+		]
+
+		expected_outputs = [
+			[neuron.output for neuron in input_layer.neurons],
+			[neuron.output for neuron in hidden_layer.neurons],
+			[neuron.output for neuron in output_layer.neurons]
+		]
+
+		expected_layer_input_derivs = [
+			None,
+			[[neuron.derror_by_dinput for neuron in hidden_layer.neurons]],
+			[[neuron.derror_by_dinput for neuron in output_layer.neurons]]
+		]
+
+		expected_layer_output_derivs = [
+			None,
+			[[neuron.derror_by_doutput for neuron in hidden_layer.neurons]],
+			[[neuron.derror_by_doutput for neuron in output_layer.neurons]]
+		]
+
+		###
+		# make net that we're actually going to test with neuralnet/nn package
+		###
+		net = nn.FeedForwardNet(
+			layer_sizes,
+			hidden_fn_pair=nn.TANH_FN_PAIR,
+			output_fn_pair=nn.SOFTMAX_FN_PAIR,
+			err_fn=nn.cross_entropy_error
+		)
+		net.weights = weights
+		net.bias_weights = bias_weights
+
+		actual_inputs, actual_outputs = net.forward(inputs, outputs=nn.ALL_LAYER_INPUTS_AND_OUTPUTS)
+
+		self.assert_list_of_arrays_allclose(expected_inputs, actual_inputs)
+		self.assert_list_of_arrays_allclose(expected_outputs, actual_outputs)
+
+		#forward & backward pass all in one go
+		layer_input_derivs, layer_output_derivs, weight_partial_derivs, bias_weight_partial_derivs = net.get_partial_derivs(inputs, target_outputs, outputs=nn.ALL_DERIVS_AND_WEIGHTS)
+
+		#don't bother checking the derivatives of the input layer;
+		#the FFNN will calculate them but they're irrelevant because
+		#they're never used. The neurons implementation never calculates
+		#them.
+		self.assert_list_of_arrays_allclose(
+			expected_layer_output_derivs[1:],
+			layer_output_derivs[1:]
+		)
+		self.assert_list_of_arrays_allclose(
+			expected_layer_input_derivs[1:],
+			layer_input_derivs[1:]
+		)
+
+		# nn.printl("expected_layer_input_derivs", expected_layer_input_derivs)
+		# nn.printl("layer_input_derivs", layer_input_derivs)
+		# exit()
+
+		assert_allclose(
+			expected_weight_derivs[0],
+			weight_partial_derivs[0]
+		)
+		assert_allclose(
+			expected_weight_derivs[1],
+			weight_partial_derivs[1]
+		)
+
+		#both should be None
+		self.assertEqual(expected_bias_weight_derivs[0], bias_weight_partial_derivs[0])
+
+		assert_allclose(
+			expected_bias_weight_derivs[1],
+			bias_weight_partial_derivs[1]
+		)
+		assert_allclose(
+			expected_bias_weight_derivs[2],
+			bias_weight_partial_derivs[2]
+		)
 
 class TestNeurons(unittest.TestCase):
 	def test_neuron(self):
