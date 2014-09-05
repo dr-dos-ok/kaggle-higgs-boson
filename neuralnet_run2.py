@@ -46,12 +46,24 @@ writeDone()
 if os.path.exists(NET_SAVE_FILE):
 	write("loading and re-training existing net")
 	net = nn.FeedForwardNet.load(NET_SAVE_FILE)
-	min_err = train(net, traindata, learning_rate=0.0001, velocity_decay=0.2)
+	# min_err = train(net, traindata, learning_rate=0.0001, velocity_decay=0.9)
+	min_err = None
 	writeDone()
 else:
 	write("training new net")
-	net = nn.ZFeedForwardNet(traindata, feature_cols, output_cols, [-1, 1000, 1000, -1])
-	min_err = train(net, traindata, learning_rate=0.01, velocity_decay=0.99)
+	net = nn.ZFeedForwardNet(
+		traindata,
+		feature_cols, output_cols,
+		[-1, 500, 500, 500, -1],
+		hidden_fn_pair=nn.TANH_MOD_FN_PAIR,
+		output_fn_pair=nn.LOGISTIC_FN_PAIR,
+		err_fn=nn.squared_error
+	)
+	min_err = train(net, traindata,
+		learning_rate=0.001,
+		velocity_decay=0.99,
+		batch_size=100
+	)
 	writeDone()
 
 write("saving net")
