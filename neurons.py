@@ -162,16 +162,11 @@ class SoftmaxOutputNeuron(OutputNeuron):
 
 	#override
 	def calc_derror_by_dinput(self):
-		#same as LogisticNeuron
-		y = self.output
-		self.derror_by_dinput = y * (1 - y) * self.derror_by_doutput
+		self.derror_by_dinput = self.output - self.expected_value
 
 	#override
 	def calc_derror_by_doutput(self):
-		#error for softmax neurons is cross-entropy error
-		# http://en.wikipedia.org/wiki/Cross_entropy
-		# https://class.coursera.org/neuralnets-2012-001/lecture/47
-		self.derror_by_doutput = (-self.expected_value) / self.output
+		raise Exception("You should probably skip straight to calc_derror_by_dinput()")
 
 class NeuronLayer(object):
 	def __init__(self):
@@ -249,6 +244,12 @@ class SoftmaxOutputNeuronLayer(OutputNeuronLayer):
 
 	def partition_fn(self):
 		return sum([neuron.exp for neuron in self.neurons])
+
+	#override
+	def backprop(self):
+		for neuron in self.neurons:
+			neuron.calc_derror_by_dinput()
+		self.bias_neuron.calc_derror_by_doutput()
 
 class NeuronConnection(object):
 	def __init__(self, lower_neuron, upper_neuron, weight):

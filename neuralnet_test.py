@@ -65,64 +65,21 @@ class TestFunctions(TestCase):
 		actual = nn.flatten_lists_of_arrays(l1, l2)
 		assert_array_equal(actual, expected)
 
-	# def test_unflatten_to_lists_of_arrays(self):
-
-	# 	flattened = np.array([1,2,3,4,5,6,7,8,9,10, 10,20,30,40,50,60,70,80,90,100])
-
-	# 	expected1 = [
-	# 		np.array([1,2,3]),
-	# 		np.array([
-	# 			[4,5],
-	# 			[6,7]
-	# 		]),
-	# 		np.array([8,9,10])
-	# 	]
-
-	# 	expected2 = [
-	# 		np.array([10,20,30]),
-	# 		np.array([40,50,60,70]),
-	# 		np.array([80,90,100])
-	# 	]
-
-	# 	outlist1 = [
-	# 		np.zeros(3),
-	# 		np.zeros((2,2)),
-	# 		np.zeros(3)
-	# 	]
-	# 	outlist2 = [
-	# 		np.zeros(3),
-	# 		np.zeros(4),
-	# 		np.zeros(3)
-	# 	]
-
-	# 	nn.unflatten_to_lists_of_arrays(flattened, outlist1, outlist2)
-
-	# 	for index in range(len(expected1)):
-	# 		assert_array_equal(expected1[index], outlist1[index])
-	# 		assert_array_equal(expected2[index], outlist2[index])
-
 	def test_softmax(self):
 		inputs = np.array([-10, -5, -1, 0, 1, 5, 10])
 		e = np.exp(inputs)
 		expected = e / np.sum(e)
+		expected = expected.reshape((1, -1))
+
+		inputs = inputs.reshape([1, -1])
 		outputs = nn.softmax(inputs)
-
-		assert_array_equal(expected, outputs)
-
-	def test_softmax_deriv(self):
-		inputs = np.array([-10, -5, -1, 0, 1, 5, 10])
-		e = np.exp(inputs)
-		softmax = e / np.sum(e)
-		expected = softmax * (1.0 - softmax)
-
-		outputs = nn.softmax_deriv(inputs, softmax)
 
 		assert_array_equal(expected, outputs)
 
 class TestFeedForwardNet(TestCase):
 
 	def test_forward(self):
-		net = nn.FeedForwardNet([5, 3, 1], hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_fn_pair=nn.LOGISTIC_FN_PAIR)
+		net = nn.FeedForwardNet([5, 3, 1], hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_layer=nn.LOGISTIC_SQERR_OUTPUT_LAYER)
 		weights = [
 			1.0 / np.array([
 				[1.0, 2.0, 3.0],
@@ -305,7 +262,7 @@ class TestFeedForwardNet(TestCase):
 		###
 		# make net that we're actually going to test with neuralnet/nn package
 		###
-		net = nn.FeedForwardNet(layer_sizes, hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_fn_pair=nn.LOGISTIC_FN_PAIR)
+		net = nn.FeedForwardNet(layer_sizes, hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_layer=nn.LOGISTIC_SQERR_OUTPUT_LAYER)
 		net.set_weights(weights, bias_weights)
 
 		#forward & backward pass all in one go
@@ -394,7 +351,7 @@ class TestFeedForwardNet(TestCase):
 	def test_backprop_manual(self):
 		"""some numbers that I came up with by hand, once upon a time"""
 
-		net = nn.FeedForwardNet([2, 2, 1], hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_fn_pair=nn.LOGISTIC_FN_PAIR)
+		net = nn.FeedForwardNet([2, 2, 1], hidden_fn_pair=nn.LOGISTIC_FN_PAIR, output_layer=nn.LOGISTIC_SQERR_OUTPUT_LAYER)
 		weights = [
 			np.array([
 				[1.9, 2.1],
@@ -433,9 +390,9 @@ class TestFeedForwardNet(TestCase):
 		self.assert_list_of_arrays_allclose(expected_layer_inputs, layer_inputs)
 
 		expected_layer_output_derivs = [
-			np.array([[-0.00717167, 0.00061211]]),
+			None, # np.array([[-0.00717167, 0.00061211]]),
 			np.array([[ 0.09480353, -0.09480353]]),
-			np.array([[-0.39626957]])
+			None #np.array([[-0.39626957]])
 		]
 		self.assert_list_of_arrays_allclose(expected_layer_output_derivs, layer_output_derivs)
 
@@ -552,14 +509,14 @@ class TestFeedForwardNet(TestCase):
 
 		expected_inputs = [
 			None,
-			[neuron.input for neuron in hidden_layer.neurons],
-			[neuron.input for neuron in output_layer.neurons]
+			np.array([[neuron.input for neuron in hidden_layer.neurons]]),
+			np.array([[neuron.input for neuron in output_layer.neurons]])
 		]
 
 		expected_outputs = [
-			[neuron.output for neuron in input_layer.neurons],
-			[neuron.output for neuron in hidden_layer.neurons],
-			[neuron.output for neuron in output_layer.neurons]
+			np.array([[neuron.output for neuron in input_layer.neurons]]),
+			np.array([[neuron.output for neuron in hidden_layer.neurons]]),
+			np.array([[neuron.output for neuron in output_layer.neurons]])
 		]
 
 		expected_layer_input_derivs = [
@@ -571,7 +528,7 @@ class TestFeedForwardNet(TestCase):
 		expected_layer_output_derivs = [
 			None,
 			[[neuron.derror_by_doutput for neuron in hidden_layer.neurons]],
-			[[neuron.derror_by_doutput for neuron in output_layer.neurons]]
+			None #[[neuron.derror_by_doutput for neuron in output_layer.neurons]]
 		]
 
 		###
@@ -580,11 +537,11 @@ class TestFeedForwardNet(TestCase):
 		net = nn.FeedForwardNet(
 			layer_sizes,
 			hidden_fn_pair=nn.TANH_FN_PAIR,
-			output_fn_pair=nn.SOFTMAX_FN_PAIR,
-			err_fn=nn.cross_entropy_error
+			output_layer=nn.SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER
 		)
 		net.set_weights(weights, bias_weights)
 
+		inputs = inputs.reshape((1, -1))
 		actual_inputs, actual_outputs = net.forward(inputs, outputs=nn.ALL_LAYER_INPUTS_AND_OUTPUTS)
 
 		self.assert_list_of_arrays_allclose(expected_inputs, actual_inputs)
@@ -598,12 +555,12 @@ class TestFeedForwardNet(TestCase):
 		#they're never used. The neurons implementation never calculates
 		#them.
 		self.assert_list_of_arrays_allclose(
-			expected_layer_output_derivs[1:],
-			layer_output_derivs[1:]
+			expected_layer_output_derivs,
+			layer_output_derivs
 		)
 		self.assert_list_of_arrays_allclose(
-			expected_layer_input_derivs[1:],
-			layer_input_derivs[1:]
+			expected_layer_input_derivs,
+			layer_input_derivs
 		)
 
 		assert_allclose(

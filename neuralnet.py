@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 import cPickle as pickle
-import scipy.special
 import math
+
+from scipy.special import expit
 
 def adjacent_pairs(a):
 	"""
@@ -16,6 +17,13 @@ def adjacent_pairs(a):
 	"""
 	for i in range(len(a)-1):
 		yield (a[i], a[i+1])
+
+def squared_error(y, target):
+	a = (y - target)
+	return 0.5 * a * a
+
+def squared_error_deriv(y, target):
+	return y - target
 
 def logistic_deriv(x, y):
 	"""
@@ -33,7 +41,7 @@ def logistic_deriv(x, y):
 	"""
 	return y * (1.0 - y)
 
-LOGISTIC_FN_PAIR = (scipy.special.expit, logistic_deriv)
+LOGISTIC_FN_PAIR = (expit, logistic_deriv)
 
 def tanh_deriv(x, y):
 	"""
@@ -51,65 +59,45 @@ def tanh_deriv(x, y):
 
 TANH_FN_PAIR = (np.tanh, tanh_deriv)
 
+def tanh_mod(x):
+	"""
+	Slightly modified version of tanh per Yann LeCunn's suggestion in
+	"Efficient Backprop"
+	"""
+	return 1.7159 * np.tanh(0.6666 * x)
+
+def tanh_mod_deriv(x, y):
+	"""
+	derivative of tanh_mod
+	"""
+	numerator1 = (1.0 - y*y)
+	numerator2 = (1.0 - 1.7159*1.7159)
+	denominator = 1.7159
+
+	return 0.6666 * ((numerator1 - numerator2) / denominator)
+
+TANH_MOD_FN_PAIR = (tanh_mod, tanh_mod_deriv)
+
 def softmax(x):
 	e = np.exp(x)
-	return e / np.sum(e)
+	return e / np.sum(e, axis=1).reshape((-1, 1))
 
-def softmax_deriv(x, y):
-	#if you think this looks exactly like logistic_deriv you're not wrong
-	#I have no idea why/how that's true but apparently it is
-	return y * (1.0 - y)
+def logistic_sqerr_input_deriv(x, y, target):
+	return logistic_deriv(x, y) * squared_error_deriv(y, target)
 
-SOFTMAX_FN_PAIR = (softmax, softmax_deriv)
+def tanh_sqerr_input_deriv(x, y, target):
+	return tanh_deriv(x, y) * squared_error_deriv(y, target)
 
-def squared_error(actuals, expected):
-	"""
-	Given a 1D numpy.ndarray of calculated values and a same-sized
-	numpy.ndarray of expected values, calculate the squared error
-	between the two arrays, and the partial derivatives of the error
-	with respect to each element of the output.
+def tanh_mod_sqerr_input_deriv(x, y, target):
+	return tanh_mod_deriv(x, y) * squared_error_deriv(y, target)
 
-	Alternately, given 2 same-sized 2D ndarrays of actual and
-	expected values, compute a 1D array of errors such that
-	errors[i] = squared_error(actuals[i], expected[i])
-	The partial derivatives then become a 2D array of the same
-	size as the input
+def softmax_cross_entropy_input_deriv(x, y, target):
+	return y - target
 
-	The value returned from this function is a tuple of
-	(sq_err, derr_by_doutput)
-	with types (float, numpy.ndarray) respectively
-
-	The squared error is given as:
-	sq_err = 0.5 * sum((actuals[i] - expected[i])**2)
-
-	The partial derivatives are given as:
-	derr_by_doutput[i] = actuals[i] - expected[i]
-	"""
-
-	diffs = actuals - expected
-	return (
-		0.5 * np.sum(diffs * diffs, axis=1), # error
-		diffs # derror_by_doutput
-	)
-
-def cross_entropy_error(actuals, expected):
-	"""
-	Best used for classification problems where the output layer is a softmax
-
-	cross entropy error:
-	-sum(t * log(y))
-	this is equivalent to the negative log of the expected answer; since this is a classification
-	problem it is expected that all t's will be 0 except for one, so the only thing to come out
-	of that sum will be the log of the y where we're expecting that 1
-
-	partial derivs:
-	-t / y
-	"""
-
-	return (
-		-np.sum(expected * np.log(actuals)),
-		-expected / actuals
-	)
+LOGISTIC_SQERR_OUTPUT_LAYER = (expit, logistic_sqerr_input_deriv)
+TANH_SQERR_OUTPUT_LAYER = (np.tanh, tanh_sqerr_input_deriv)
+TANH_MOD_SQERR_OUTPUT_LAYER = (tanh_mod, tanh_mod_sqerr_input_deriv)
+SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER = (softmax, softmax_cross_entropy_input_deriv)
 
 def normalize_vector(vec):
 	"""
@@ -145,27 +133,6 @@ def flatten_lists_of_arrays(*lists):
 			result[start:stop] = ndarray.ravel()
 			start = stop
 	return result
-
-# def unflatten_to_lists_of_arrays(flattened, *outputs):
-# 	"""
-# 	This function is intended to be the inverse of flatten_lists_of_arrays(*lists)
-
-# 	Given a 1D numpy.ndarray and an arbitrary number of parameters that are
-# 	lists of numpy.ndarray, fill each ndarray in order from the contents of the
-# 	1D array.
-
-# 	This function requires you to initialize and pass the arrays to be filled
-# 	so as to avoid requiring you to pass a complicated object specifying the
-# 	sizes of the nested lists and ndarrays. It is assumed that
-# 	flattened.size == sum_sizes(outputs), but no checking is done to
-# 	verify that.
-# 	"""
-# 	start = 0
-# 	for outlist in outputs:
-# 		for ndarray in outlist:
-# 			stop = start + ndarray.size
-# 			ndarray.ravel()[:] = flattened[start:stop]
-# 			start = stop
 
 def unflatten_weights(flattened_weights, layer_sizes):
 	weights = []
@@ -209,8 +176,7 @@ class FeedForwardNet(object):
 		self,
 		layer_sizes,
 		hidden_fn_pair=TANH_FN_PAIR,
-		output_fn_pair=TANH_FN_PAIR,
-		err_fn=squared_error
+		output_layer=LOGISTIC_SQERR_OUTPUT_LAYER
 	):
 		"""
 		layer_sizes: (required) a list of ints specifying the number of
@@ -218,21 +184,8 @@ class FeedForwardNet(object):
 		2 ints: the input and output layers respectively. Any additional
 		layers will be hidden layers.
 
-		sigmoid_fn_pair: (optional) a 2-tuple of functions representing
-		a sigmoid function and its derivative respectively. They are
-		both assumed to take in a numpy.ndarray of floats and return
-		the same. Default is
-		neuralnet.TANH_FN_PAIR (numpy.tanh, neuralnet.tanh_deriv)
-
-		err_fn: (optional) a function that calculates the error between
-		the output of this network and the expected output of a training
-		case. The function is assumed to take in two equally-sized
-		numpy.ndarrays: (actuals, expected). It is assumed to return a
-		2-tuple of (error, derror_by_doutput) with types (float, ndarray)
-		respectively. The default value is neuralnet.squared_error
+		TODO - parameters have changed, update comments
 		"""
-
-		self.err_fn = err_fn
 
 		self.layer_sizes = np.array(layer_sizes)
 		self.nlayers = nlayers = len(layer_sizes)
@@ -250,10 +203,10 @@ class FeedForwardNet(object):
 			self._bias_weights[index+1][:] = (2.0 * (np.random.random(top) - 0.5)) / math.sqrt(bottom+1)
 
 		hidden_fn, hidden_deriv = hidden_fn_pair
-		output_fn, output_deriv = output_fn_pair
+		output_fn, self.output_x_deriv = output_layer
 
 		self.layer_sigmoids = [None] + ([hidden_fn] * (nlayers-2)) + [output_fn]
-		self.layer_sigmoid_derivs = [None] + ([hidden_deriv] * (nlayers-2)) + [output_deriv]
+		self.layer_sigmoid_derivs = [None] + ([hidden_deriv] * (nlayers-2)) + [None]
 
 	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
 		"""
@@ -361,7 +314,7 @@ class FeedForwardNet(object):
 	def ones_like_flattened_weights(self):
 		return np.ones(self.nweights)
 
-	def get_partial_derivs(self, test_case_inputs, test_case_outputs, outputs=LISTS_OF_WEIGHTS):
+	def get_partial_derivs(self, test_case_inputs, test_case_targets, outputs=LISTS_OF_WEIGHTS):
 		"""
 		Given a matrix of training cases (rows are training cases, columns are features) and
 		a matrix of expected output values for each training case (same matrix structure),
@@ -402,24 +355,40 @@ class FeedForwardNet(object):
 
 		#init python arrays to appropriate length
 		#we'll fill with ndarrays presently
-		layer_output_derivs = [None] * len(self.layer_sizes)
+		layer_output_derivs = [None] * (len(self.layer_sizes))
 		layer_input_derivs = [None] * len(self.layer_sizes)
 
-		err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_outputs)
-		layer_output_derivs[-1] = derror_by_doutput
+		layer_input_derivs[-1] = self.output_x_deriv(None, layer_outputs[-1], test_case_targets)
 
-		for layer_index in range(self.nlayers-1, 0, -1):
-			#memory-saving hack: none of the sigmoids currently in use require
-			#the input (x) values. Only the output (y) values are needed, so 
-			#don't even bother keeping the inputs in memory (can be large)
-			layer_input_derivs[layer_index] = \
-				self.layer_sigmoid_derivs[layer_index](None, layer_outputs[layer_index]) \
-				* layer_output_derivs[layer_index]
+		#all layer indexes except the first and last (input & output)
+		layer_indexes = range(1, self.nlayers-1)
 
-			layer_output_derivs[layer_index-1] = np.dot(
-				layer_input_derivs[layer_index],
-				self._weights[layer_index-1].T
+		for layer_index in reversed(layer_indexes):
+			layer_output_derivs[layer_index] = np.dot(
+				layer_input_derivs[layer_index+1],
+				self._weights[layer_index].T
 			)
+
+			layer_input_derivs[layer_index] = (
+				self.layer_sigmoid_derivs[layer_index](None, layer_outputs[layer_index]) *
+				layer_output_derivs[layer_index]
+			)
+
+		# err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_outputs)
+		# layer_output_derivs[-1] = derror_by_doutput
+
+		# for layer_index in range(self.nlayers-1, 0, -1):
+		# 	#memory-saving hack: none of the sigmoids currently in use require
+		# 	#the input (x) values. Only the output (y) values are needed, so 
+		# 	#don't even bother keeping the inputs in memory (can be large)
+		# 	layer_input_derivs[layer_index] = \
+		# 		self.layer_sigmoid_derivs[layer_index](None, layer_outputs[layer_index]) \
+		# 		* layer_output_derivs[layer_index]
+
+		# 	layer_output_derivs[layer_index-1] = np.dot(
+		# 		layer_input_derivs[layer_index],
+		# 		self._weights[layer_index-1].T
+		# 	)
 
 		flattened_weight_derivs = self.empty_like_flattened_weights()
 		weight_derivs, bias_weight_derivs = unflatten_weights(flattened_weight_derivs, self.layer_sizes)
@@ -474,8 +443,7 @@ class ZFeedForwardNet(FeedForwardNet):
 		output_cols,
 		layer_sizes,
 		hidden_fn_pair=TANH_FN_PAIR,
-		output_fn_pair=TANH_FN_PAIR,
-		err_fn=squared_error
+		output_layer=LOGISTIC_SQERR_OUTPUT_LAYER
 	):
 		subdf = dataframe[input_cols]
 		self.stddevs = subdf.std()
@@ -497,13 +465,14 @@ class ZFeedForwardNet(FeedForwardNet):
 		super(ZFeedForwardNet, self).__init__(
 			layer_sizes,
 			hidden_fn_pair=hidden_fn_pair,
-			output_fn_pair=output_fn_pair,
-			err_fn=err_fn
+			output_layer=output_layer
 		)
 
 	def to_zscores(self, dataframe):
 		#expect pandas.DataFrame, return numpy.ndarray
-		return ((dataframe[self.input_cols] - self.means) / self.stddevs).values
+		zscores = ((dataframe[self.input_cols] - self.means) / self.stddevs).values
+		tanh_range = 2.0 * zscores - 1.0
+		return tanh_range
 
 	#override
 	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
