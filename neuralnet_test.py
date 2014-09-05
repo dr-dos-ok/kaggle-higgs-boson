@@ -423,6 +423,86 @@ class TestFeedForwardNet(TestCase):
 		]
 		self.assert_list_of_arrays_allclose(expected_bias_derivs, bias_derivs)
 
+	def test_softmax_backprop_manual(self):
+		"""some numbers that I came up with by hand, once upon a time"""
+
+		net = nn.FeedForwardNet(
+			[2,2,2],
+			hidden_fn_pair=nn.TANH_FN_PAIR,
+			output_layer=nn.SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER
+		)
+		weights = [
+			np.array([
+				[0.3, 0.4],
+				[0.5, 0.6]
+			]),
+			np.array([
+				[0.3, 0.4],
+				[0.5, 0.6]
+			])
+		]
+		bias_weights = [
+			None,
+			np.array([0.1, 0.1]),
+			np.array([0.1, 0.1])
+		]
+		net.set_weights(weights, bias_weights)
+
+		inputs = np.array([[0.0, 1.0]])
+		targets = np.array([[0.0, 1.0]])
+
+		layer_inputs, layer_outputs = net.forward(inputs, outputs=nn.ALL_LAYER_INPUTS_AND_OUTPUTS)
+		layer_input_derivs, layer_output_derivs, weight_derivs, bias_derivs = net.get_partial_derivs(inputs, targets, outputs=nn.ALL_DERIVS_AND_WEIGHTS)
+
+		expected_layer_inputs = [
+			None,
+			np.array([[ 0.6,  0.7]]),
+			np.array([[ 0.56329876,  0.67744049]])
+		]
+
+		expected_layer_outputs = [
+			np.array([[ 0.,  1.]]),
+			np.array([[ 0.53704957,  0.60436778]]),
+			np.array([[ 0.47149551,  0.52850449]])
+		]
+
+		self.assert_list_of_arrays_allclose(expected_layer_inputs, layer_inputs)
+		self.assert_list_of_arrays_allclose(expected_layer_outputs, layer_outputs)
+
+		expected_layer_input_derivs = [
+			None,
+			np.array([[-0.03355057, -0.02992769]]),
+			np.array([[ 0.47149551, -0.47149551]])
+		]
+
+		expected_layer_output_derivs = [
+			None,
+			np.array([[-0.04714955, -0.04714955]]),
+			None
+		]
+
+		expected_weight_derivs = [
+			np.array([
+				[ 0.,          0.        ],
+				[-0.03355057, -0.02992769]
+			]),
+			np.array([
+				[ 0.25321646, -0.25321646],
+				[ 0.28495669, -0.28495669]
+			])
+		]
+
+		expected_bias_derivs = [
+			None,
+			np.array([-0.03355057, -0.02992769]),
+			np.array([ 0.47149551, -0.47149551])
+		]
+
+		self.assert_list_of_arrays_allclose(expected_layer_input_derivs, layer_input_derivs)
+		self.assert_list_of_arrays_allclose(expected_layer_output_derivs, layer_output_derivs)
+		self.assert_list_of_arrays_allclose(expected_weight_derivs, weight_derivs)
+		self.assert_list_of_arrays_allclose(expected_bias_derivs, bias_derivs)
+
 	def test_save_and_load(self):
 		net1 = nn.FeedForwardNet([3,5,2])
 		out1 = net1.forward(np.ones(3))
