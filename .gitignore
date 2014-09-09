@@ -76,3 +76,5 @@ pynn_example.py
 *.nn
 
 *.znn
+
+*.npz
