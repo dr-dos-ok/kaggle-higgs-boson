@@ -398,22 +398,6 @@ class FeedForwardNet(object):
 				layer_output_derivs[layer_index]
 			)
 
-		# err, derror_by_doutput = self.err_fn(layer_outputs[-1], test_case_outputs)
-		# layer_output_derivs[-1] = derror_by_doutput
-
-		# for layer_index in range(self.nlayers-1, 0, -1):
-		# 	#memory-saving hack: none of the sigmoids currently in use require
-		# 	#the input (x) values. Only the output (y) values are needed, so 
-		# 	#don't even bother keeping the inputs in memory (can be large)
-		# 	layer_input_derivs[layer_index] = \
-		# 		self.layer_sigmoid_derivs[layer_index](None, layer_outputs[layer_index]) \
-		# 		* layer_output_derivs[layer_index]
-
-		# 	layer_output_derivs[layer_index-1] = np.dot(
-		# 		layer_input_derivs[layer_index],
-		# 		self._weights[layer_index-1].T
-		# 	)
-
 		flattened_weight_derivs = self.empty_like_flattened_weights()
 		weight_derivs, bias_weight_derivs = unflatten_weights(flattened_weight_derivs, self.layer_sizes)
 
