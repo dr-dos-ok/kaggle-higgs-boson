@@ -174,6 +174,10 @@ LISTS_OF_WEIGHTS = 0
 FLATTENED_WEIGHTS = 1
 ALL_DERIVS_AND_WEIGHTS = 2
 
+#for flattened_weight_mask
+WEIGHTS = 1
+BIASES = 2
+
 _ONE = np.ones(1)
 
 class FeedForwardNet(object):
@@ -195,7 +199,10 @@ class FeedForwardNet(object):
 
 		self.layer_sizes = np.array(layer_sizes)
 		self.nlayers = nlayers = len(layer_sizes)
-		self.nweights = sum([(bottom * top + top) for bottom, top in adjacent_pairs(layer_sizes)])
+
+		self.nweights = sum([bottom * top for bottom, top in adjacent_pairs(layer_sizes)])
+		self.nbiases = sum(layer_sizes[1:])
+		self.n_weights_and_biases = self.nweights + self.nbiases
 		
 		#create the "one ndarray to rule them all" and then slice it up into
 		#individual weight matrices that can actually be used
@@ -312,13 +319,24 @@ class FeedForwardNet(object):
 		that you can apply element-wise operations in a meaningful way (e.g. you can
 		add two flattened weight arrays to get the sum of the weights)
 		"""
-		return np.zeros(self.nweights)
+		return np.zeros(self.n_weights_and_biases)
 
 	def empty_like_flattened_weights(self):
-		return np.empty(self.nweights)
+		return np.empty(self.n_weights_and_biases)
 
 	def ones_like_flattened_weights(self):
-		return np.ones(self.nweights)
+		return np.ones(self.n_weights_and_biases)
+
+	def flattened_weight_mask(self, mask):
+		include_weights = (mask & WEIGHTS) > 0
+		include_biases = (mask & BIASES) > 0
+
+		result = np.zeros(self.n_weights_and_biases)
+		if include_weights:
+			result[:self.nweights] = 1
+		if include_biases:
+			result[self.nweights:] = 1
+		return result
 
 	def get_partial_derivs(self, test_case_inputs, test_case_targets, outputs=LISTS_OF_WEIGHTS):
 		"""
