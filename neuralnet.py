@@ -25,6 +25,12 @@ def squared_error(y, target):
 def squared_error_deriv(y, target):
 	return y - target
 
+def cross_entropy_error(y, target):
+	return -np.sum(
+		target * np.log(y),
+		axis=1
+	)
+
 def logistic_deriv(x, y):
 	"""
 	x: the actual x-values that we're dealing with (numpy.ndarray)
@@ -94,10 +100,10 @@ def tanh_mod_sqerr_input_deriv(x, y, target):
 def softmax_cross_entropy_input_deriv(x, y, target):
 	return y - target
 
-LOGISTIC_SQERR_OUTPUT_LAYER = (expit, logistic_sqerr_input_deriv)
-TANH_SQERR_OUTPUT_LAYER = (np.tanh, tanh_sqerr_input_deriv)
-TANH_MOD_SQERR_OUTPUT_LAYER = (tanh_mod, tanh_mod_sqerr_input_deriv)
-SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER = (softmax, softmax_cross_entropy_input_deriv)
+LOGISTIC_SQERR_OUTPUT_LAYER = (expit, squared_error, logistic_sqerr_input_deriv)
+TANH_SQERR_OUTPUT_LAYER = (np.tanh, squared_error, tanh_sqerr_input_deriv)
+TANH_MOD_SQERR_OUTPUT_LAYER = (tanh_mod, squared_error, tanh_mod_sqerr_input_deriv)
+SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER = (softmax, cross_entropy_error, softmax_cross_entropy_input_deriv)
 
 def normalize_vector(vec):
 	"""
@@ -203,7 +209,7 @@ class FeedForwardNet(object):
 			self._bias_weights[index+1][:] = (2.0 * (np.random.random(top) - 0.5)) / math.sqrt(bottom+1)
 
 		hidden_fn, hidden_deriv = hidden_fn_pair
-		output_fn, self.output_x_deriv = output_layer
+		output_fn, self.err_fn, self.output_x_deriv = output_layer
 
 		self.layer_sigmoids = [None] + ([hidden_fn] * (nlayers-2)) + [output_fn]
 		self.layer_sigmoid_derivs = [None] + ([hidden_deriv] * (nlayers-2)) + [None]
