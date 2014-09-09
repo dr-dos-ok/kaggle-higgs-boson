@@ -453,20 +453,24 @@ class ZFeedForwardNet(FeedForwardNet):
 		hidden_fn_pair=TANH_FN_PAIR,
 		output_layer=LOGISTIC_SQERR_OUTPUT_LAYER
 	):
-		subdf = dataframe[input_cols]
-		self.stddevs = subdf.std()
-		self.means = subdf.mean()
-
-		#filter columns that have no variance; causes nan's later on when we
-		#divide
-		input_cols = [col for col in input_cols if self.stddevs[col] != 0.0]
-		self.stddevs = self.stddevs[input_cols]
-		self.means = self.means[input_cols]
-		self.input_cols = input_cols
-
+		#take a little extra care to filter out nans and -999 before computing
+		#means/stddevs. Having nans will cause a nansplosion later on,
+		#and having -999s will just skew the averages and stddevs a bit
+		self.stddevs = pd.Series()
+		self.means = pd.Series()
+		_input_cols = []
+		for col in input_cols:
+			column = dataframe[col]
+			column = column[(~np.isnan(column)) & (column != -999.0)]
+			stddev = column.std()
+			if stddev > 0.0:
+				self.stddevs[col] = stddev
+				self.means[col] = column.mean()
+				_input_cols.append(col)
+		self.input_cols = input_cols = _input_cols
 		self.output_cols = output_cols
 
-		#re-calculate input layer; may have changed
+		#re-calculate input/output layer sizes; may have changed
 		layer_sizes[0] = len(input_cols)
 		layer_sizes[-1] = len(output_cols)
 
@@ -477,10 +481,15 @@ class ZFeedForwardNet(FeedForwardNet):
 		)
 
 	def to_zscores(self, dataframe):
+
+		dataframe = dataframe.copy()
+		for col in self.input_cols:
+			dataframe.loc[dataframe[col]==-999, col] = self.means[col]
+
 		#expect pandas.DataFrame, return numpy.ndarray
 		zscores = ((dataframe[self.input_cols] - self.means) / self.stddevs).values
-		tanh_range = 2.0 * zscores - 1.0
-		return tanh_range
+
+		return zscores
 
 	#override
 	def forward(self, inputs, outputs=LAST_LAYER_OUTPUTS):
