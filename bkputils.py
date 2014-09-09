@@ -84,6 +84,7 @@ def loadTrainingData(numRows=None, col_flag=None, col_flag_str=None):
 			sql += " LIMIT %d" % numRows
 		_trainingData = pd.read_sql(sql, dbConn())
 		_trainingData = _trainingData.applymap(lambda x: np.nan if x == -999.0 else x)
+		_trainingData = _trainingData.set_index("EventId")
 		_trainingDataLoaded = True
 	return _trainingData
 
@@ -148,10 +149,21 @@ def print_timers():
 		print "%s:	%s" % (name, fmtTime(seconds))
 	print "TOTAL:	%s" % fmtTime(total_seconds)
 
+_TOTAL_S = 691.0
+_TOTAL_B = 410000.0
 def ams(predictions, actual_df):
+
+	actual_df = actual_df.copy() # copy this so we don't mess up someone else's data
+
 	predicted_signal = predictions == "s"
 	actual_signal = actual_df["Label"] == "s"
 	actual_background = ~actual_signal
+
+	total_s = np.sum(actual_df[actual_signal]["Weight"])
+	total_b = np.sum(actual_df[actual_background]["Weight"])
+
+	actual_df.loc[actual_signal, "Weight"] *= _TOTAL_S / total_s
+	actual_df.loc[actual_background, "Weight"] *= _TOTAL_B / total_b
 
 	s = true_positives = np.sum(actual_df[predicted_signal & actual_signal]["Weight"])
 	b = false_positives = np.sum(actual_df[predicted_signal & actual_background]["Weight"])
