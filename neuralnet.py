@@ -20,7 +20,7 @@ def adjacent_pairs(a):
 
 def squared_error(y, target):
 	a = (y - target)
-	return 0.5 * a * a
+	return np.mean(0.5 * a * a, axis=1)
 
 def squared_error_deriv(y, target):
 	return y - target

@@ -34,8 +34,8 @@ def train(net, validation_set, training_set, learning_rate=0.01, velocity_decay=
 	best_epoch = 0
 	velocity = net.zeros_like_flattened_weights()
 
-	# weight_mask = net.flattened_weight_mask(nn.BIASES)
-	weight_decay_mask = WEIGHT_DECAY # * weight_mask
+	weight_mask = net.flattened_weight_mask(nn.WEIGHTS)
+	weight_decay_mask = WEIGHT_DECAY * weight_mask
 
 	overtrained = False
 	num_epochs = 0
@@ -64,7 +64,7 @@ def train(net, validation_set, training_set, learning_rate=0.01, velocity_decay=
 
 			velocity *= velocity_decay
 			velocity += -(gradient * learning_rate)
-			weights += velocity
+			weights += velocity # since this is a direct reference to the net's actual weights, there's no need to call a setter or copy them somewhere
 
 		#epoch complete: evaluate error
 		num_epochs += 1

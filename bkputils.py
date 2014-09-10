@@ -55,13 +55,21 @@ def handle_sigint(signal, frame):
 	_SIGINT_CAUGHT = True
 
 def capture_sigint():
+	global _SIGINT_CAUGHT
+	_SIGINT_CAUGHT = False
 	signal.signal(signal.SIGINT, handle_sigint)
 
 def uncapture_sigint():
+	global _SIGINT_CAUGHT
+	_SIGINT_CAUGHT = False
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 def is_cancelled():
 	return _SIGINT_CAUGHT
+
+def reset_cancelled():
+	global _SIGINT_CAUGHT
+	_SIGINT_CAUGHT = False
 
 _conn = None
 def dbConn():

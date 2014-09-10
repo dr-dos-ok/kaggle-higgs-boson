@@ -102,7 +102,7 @@ print "\t\tcutoff: {0}".format(classifier.cutoff)
 print "\t\tprdicted ams: {0}".format(best_ams)
 
 #don't bother classifying the test data if this was a crappy run
-if best_ams >= 3.35:
+if best_ams >= 3.4:
 
 	traindata = None # may help garbage collection free up some memory
 
