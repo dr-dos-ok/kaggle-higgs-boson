@@ -4,7 +4,7 @@ import neuralnet as nn
 import sqlite3 as sqlite
 
 from bkputils import *
-from dna_train import pretrain
+from dna_pretrain import pretrain
 
 import os, zipfile, split
 
