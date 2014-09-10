@@ -99,7 +99,7 @@ for cutoff in np.arange(0.25, 0.75, 0.01):
 classifier.cutoff = best_cutoff
 writeDone()
 print "\t\tcutoff: {0}".format(classifier.cutoff)
-print "\t\tprdicted ams: {0}".format(best_ams)
+print "\t\tpredicted ams: {0}".format(best_ams)
 
 #don't bother classifying the test data if this was a crappy run
 if best_ams >= 3.4:

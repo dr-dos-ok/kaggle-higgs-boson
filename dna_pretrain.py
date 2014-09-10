@@ -19,7 +19,7 @@ def fill_columns(df, columns, fill_fn):
 
 def pretrain(
 	all_traindata, validation_ids, training_ids,
-	feature_cols, isnull_cols, output_cols,
+	feature_cols, output_cols,
 	layer_sizes,
 	hidden_fn_pair, output_layer,
 	learning_rate=0.01,
@@ -52,7 +52,7 @@ def pretrain(
 	best_weights = None
 	best_error = np.inf
 	num_epochs = 0
-	bkputils.capture_sigint()
+	# bkputils.capture_sigint()
 
 	#add each hidden layer one at a time
 	for layer_index in range(len(hidden_layer_sizes)):
@@ -87,7 +87,7 @@ def pretrain(
 		#train new layer until ctrl-c is pressed
 		# 1 loop = 1 epoch (pass thru data)
 		# while not bkputils.is_cancelled():
-		for i in range(1):
+		for i in range(15): #empirically, this is about as many loops as I can stand before I get bored
 
 			np.random.shuffle(shuffled_train_ids)
 			epoch_set = training_set.loc[shuffled_train_ids] #shuffled copy, changes should not affect training_set
@@ -132,12 +132,13 @@ def pretrain(
 		#end train loop
 		bkputils.reset_cancelled()
 
-		# plt.close()
-		print "layer {0} finished: err = {1}".format(layer_index+1, best_error)
+		
+		print "\tlayer {0} finished: err = {1}".format(layer_index+1, best_error)
 	#end hidden layer loop
-	bkputils.uncapture_sigint()
+	# bkputils.uncapture_sigint()
 
 	net.set_flattened_weights(best_weights)
+	plt.close()
 	return net
 
 def get_err(net, inputs, targets):
