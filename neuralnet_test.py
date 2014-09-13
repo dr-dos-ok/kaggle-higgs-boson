@@ -514,12 +514,17 @@ class TestFeedForwardNet(TestCase):
 		assert_array_equal(out1, out2)
 
 	def test_save_and_load_znet(self):
+		column_names = ["a", "b", "c"]
 		starting_df = pd.DataFrame(
-			np.random.random((10, 3)) + 10.0
+			np.random.random((10, 3)) + 10.0,
+			columns=column_names
 		)
-		inputs = np.random.random(3) + 10.0
+		inputs = pd.DataFrame(
+			np.random.random((1, 3)) + 10.0,
+			columns=column_names
+		)
 
-		net1 = nn.ZFeedForwardNet(starting_df, [0,1,2], [], [-1,5,2])
+		net1 = nn.ZFeedForwardNet(starting_df, column_names, [], [-1,5,2])
 		out1 = net1.forward(inputs)
 		net1.save("test_net1.znn")
 
@@ -663,6 +668,32 @@ class TestFeedForwardNet(TestCase):
 			expected_bias_weight_derivs[2],
 			bias_weight_partial_derivs[2]
 		)
+
+	def test_get_weighted_partial_derivs(self):
+
+		net = nn.FeedForwardNet(
+			[2,3,2],
+			hidden_fn_pair=nn.TANH_FN_PAIR,
+			output_layer=nn.SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER
+		)
+
+		inputs = np.array([
+			[-0.5, 0.5],
+			[0.5, 0.5]
+		])
+		targets = np.array([
+			[-0.4, 0.4],
+			[0.4, -0.4]
+		])
+		weights = np.array([1.0, 2.0])
+
+		grad1 = net.get_partial_derivs(inputs[[0]], targets[[0]], outputs=nn.FLATTENED_WEIGHTS)
+		grad2 = net.get_partial_derivs(inputs[[1]], targets[[1]], outputs=nn.FLATTENED_WEIGHTS)
+		expected = (grad1*weights[0] + grad2*weights[1]) / np.sum(weights)
+
+		testgrad = net.get_weighted_partial_derivs(inputs, targets, weights, outputs=nn.FLATTENED_WEIGHTS)
+
+		assert_array_equal(expected, testgrad)
 
 class TestNeurons(unittest.TestCase):
 	def test_neuron(self):

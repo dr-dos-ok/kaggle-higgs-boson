@@ -103,6 +103,7 @@ print "\t\tpredicted ams: {0}".format(best_ams)
 
 #don't bother classifying the test data if this was a crappy run
 if best_ams >= 3.4:
+# if True:
 
 	traindata = None # may help garbage collection free up some memory
 

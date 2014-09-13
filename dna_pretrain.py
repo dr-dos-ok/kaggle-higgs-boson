@@ -43,8 +43,8 @@ def pretrain(
 
 	plotter = Plotter()
 
-	all_inputs = feature_cols + isnull_cols + isnoise_cols
-	all_outputs = output_cols + feature_cols
+	all_inputs = feature_cols # + isnoise_cols
+	all_outputs = feature_cols # output_cols + feature_cols
 
 	hidden_layer_sizes = layer_sizes[1:-1] #chop off first and last
 	shuffled_train_ids = training_set.index.values.copy() #we'll shuffle these repeatedly, later
@@ -87,7 +87,7 @@ def pretrain(
 		#train new layer until ctrl-c is pressed
 		# 1 loop = 1 epoch (pass thru data)
 		# while not bkputils.is_cancelled():
-		for i in range(15): #empirically, this is about as many loops as I can stand before I get bored
+		for i in range(1): #empirically, this is about as many loops as I can stand before I get bored
 
 			np.random.shuffle(shuffled_train_ids)
 			epoch_set = training_set.loc[shuffled_train_ids] #shuffled copy, changes should not affect training_set
@@ -115,6 +115,23 @@ def pretrain(
 				velocity += -(gradient * learning_rate)
 				weights += velocity
 			#end minibatch loop
+
+			# np.set_printoptions(
+			# 	formatter={
+			# 		"float": lambda x: " {0:f}".format(x) if x >= 0.0 else "{0:f}".format(x)
+			# 	}
+			# )
+			# index = epoch_set.index[0]
+			# print "index:", index
+			# inputs = epoch_set.loc[[index]][all_inputs]
+			# print "inputs:"
+			# print inputs.values
+			# targets = training_set.loc[[index]][all_inputs]
+			# print "targets:"
+			# print targets.values
+			# print "outputs:"
+			# print net.forward(inputs.values)
+			# exit()
 
 			layer_epochs += 1
 			num_epochs += 1

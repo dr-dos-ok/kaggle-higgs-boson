@@ -31,6 +31,9 @@ def cross_entropy_error(y, target):
 		axis=1
 	)
 
+def identity(x):
+	return x
+
 def logistic_deriv(x, y):
 	"""
 	x: the actual x-values that we're dealing with (numpy.ndarray)
@@ -100,10 +103,14 @@ def tanh_mod_sqerr_input_deriv(x, y, target):
 def softmax_cross_entropy_input_deriv(x, y, target):
 	return y - target
 
+def identity_sqerr_input_deriv(x, y, target):
+	return squared_error_deriv(y, target)
+
 LOGISTIC_SQERR_OUTPUT_LAYER = (expit, squared_error, logistic_sqerr_input_deriv)
 TANH_SQERR_OUTPUT_LAYER = (np.tanh, squared_error, tanh_sqerr_input_deriv)
 TANH_MOD_SQERR_OUTPUT_LAYER = (tanh_mod, squared_error, tanh_mod_sqerr_input_deriv)
 SOFTMAX_CROSS_ENTROPY_OUTPUT_LAYER = (softmax, cross_entropy_error, softmax_cross_entropy_input_deriv)
+IDENTITY_SQERR_OUTPUT_LAYER = (identity, squared_error, identity_sqerr_input_deriv)
 
 def normalize_vector(vec):
 	"""
@@ -339,6 +346,83 @@ class FeedForwardNet(object):
 		return result
 
 	def get_partial_derivs(self, test_case_inputs, test_case_targets, outputs=LISTS_OF_WEIGHTS):
+		"""
+		Given a matrix of training cases (rows are training cases, columns are features) and
+		a matrix of expected output values for each training case (same matrix structure),
+		compute the partial derivative of the error with respect to each weight and bias weight
+		for each training case. Return the average partial derivatives for each weight and bias
+		in the network.
+
+		Internally this method implements the backpropagation algorithm to calculate the
+		partial error derivatives.
+		http://en.wikipedia.org/wiki/Backpropagation
+		https://class.coursera.org/neuralnets-2012-001/lecture/39
+
+		If outputs=LISTS_OF_WEIGHTS (default) is specified, a tuple of
+		(weight_derivs, bias_weight_derivs) is returned where each item is a list of
+		numpy.ndarray. The shape and order of weight_derivs will be identical to that
+		of self.weights and similarly bias_weight_derivs will match up to self.bias_weights.
+		Note that, like self.bias_weights, the first element of bias_weight_derivs will
+		be None because there are no biases computed for the input layer.
+
+		If outputs=FLATTENED_WEIGHTS is specified, the outputs will be a 1D
+		numpy.ndarray that is compatible with the 1D arrays used by the other
+		flattened_weights methods available in this class
+
+		If outputs=ALL_DERIVS_AND_WEIGHTS is specified a tuple of
+		(layer_input_derivs, layer_output_derivs, weight_derivs, bias_weight_derivs)
+		is returned. This "numeric diarrhea mode" is mostly only useful for unit tests
+		and other debugging purposes.
+		"""
+
+		if test_case_inputs.ndim == 1:
+			test_case_inputs = test_case_inputs.reshape(1,-1)
+
+		#memory-saving hack: we should really pass outputs=ALL_LAYER_INPUTS_AND_OUTPUTS
+		#and then pass layer_inputs to self.sigmoid_deriv as well, but none of the
+		#currently implemented sigmoids (tanh, logistic) require the x values so
+		#we should save some memory by not even retrieving them
+		layer_outputs = self.forward(test_case_inputs, outputs=ALL_LAYER_OUTPUTS)
+
+		#init python arrays to appropriate length
+		#we'll fill with ndarrays presently
+		layer_output_derivs = [None] * (len(self.layer_sizes))
+		layer_input_derivs = [None] * len(self.layer_sizes)
+
+		layer_input_derivs[-1] = self.output_x_deriv(None, layer_outputs[-1], test_case_targets)
+
+		#all layer indexes except the first and last (input & output)
+		layer_indexes = range(1, self.nlayers-1)
+
+		for layer_index in reversed(layer_indexes):
+			layer_output_derivs[layer_index] = np.dot(
+				layer_input_derivs[layer_index+1],
+				self._weights[layer_index].T
+			)
+
+			layer_input_derivs[layer_index] = (
+				self.layer_sigmoid_derivs[layer_index](None, layer_outputs[layer_index]) *
+				layer_output_derivs[layer_index]
+			)
+
+		flattened_weight_derivs = self.empty_like_flattened_weights()
+		weight_derivs, bias_weight_derivs = unflatten_weights(flattened_weight_derivs, self.layer_sizes)
+
+		for index in xrange(len(self._weights)):
+			weight_derivs[index][:] = np.dot(layer_outputs[index].T, layer_input_derivs[index+1]) / layer_outputs[index].shape[0]
+
+		for index in xrange(len(self._bias_weights[1:])):
+			index += 1 # because we skipped the first layer
+			bias_weight_derivs[index][:] = np.mean(layer_input_derivs[index], axis=0)
+
+		if outputs == LISTS_OF_WEIGHTS:
+			return (weight_derivs, bias_weight_derivs)
+		elif outputs == FLATTENED_WEIGHTS:
+			return flattened_weight_derivs
+		elif outputs == ALL_DERIVS_AND_WEIGHTS:
+			return (layer_input_derivs, layer_output_derivs, weight_derivs, bias_weight_derivs)
+
+	def get_weighted_partial_derivs(self, test_case_inputs, test_case_targets, test_case_weights, outputs=LISTS_OF_WEIGHTS):
 		"""
 		Given a matrix of training cases (rows are training cases, columns are features) and
 		a matrix of expected output values for each training case (same matrix structure),
