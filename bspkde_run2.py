@@ -5,7 +5,7 @@ from bkputils import *
 
 import bspkde, time, colflags, zipfile, scipy.stats, multiprocessing
 
-NUM_MODELS = 100
+NUM_MODELS = 1000
 COLS_PER_MODEL = 6
 TRAIN_LIMIT = None
 TEST_LIMIT = None
@@ -35,11 +35,19 @@ class RandomComparatorSet(object):
 			model_cols = column_sets[i]
 			self.comparators[i] = bspkde.BspKdeComparator(",".join(model_cols), dataframe, model_cols)
 
-	def score(self, dataframe, pool=None):
+	def score(self, dataframe, parallel):
 		global _parallel_score_dataframe
 		n_comparators = len(self.comparators)
 
 		_parallel_score_dataframe = dataframe
+
+		if parallel==True:
+			_parallel_score_dataframe = dataframe
+			pool = multiprocessing.Pool()
+		elif parallel==False:
+			pool=None
+		else:
+			pool=parallel #assumed to be instance of multiprocessing.Pool()
 
 		if pool is not None:
 			scores = pool.map(parallel_score, self.comparators)
@@ -62,8 +70,8 @@ class Classifier(object):
 		self.cutoff = 0.0
 		self.options = np.array(["b", "s"])
 
-	def classify(self, dataframe, pool=None):
-		score_s, score_b = self.comparator.score(dataframe, pool=pool)
+	def classify(self, dataframe, parallel=None):
+		score_s, score_b = self.comparator.score(dataframe, parallel=parallel)
 
 		diffs = score_s - score_b
 		ratios = score_s / score_b
@@ -93,23 +101,28 @@ comparator = RandomComparatorSet(column_sets, feature_cols, traindata)
 writeDone()
 
 write("creating and tuning classifier")
-best_cutoff = 0.0
-best_ams = 0.0
-def test_cutoff(cutoff):
+def test_cutoff(exponent):
+	cutoff = np.exp(exponent)
 	classifier = Classifier(comparator)
 	classifier.cutoff = cutoff
-	predictions, confidence = classifier.classify(traindata)
+	predictions, confidence = classifier.classify(traindata, parallel=False)
 	score = ams(predictions, traindata)
-	return (cutoff, score)
-results = multiprocessing.Pool().map(test_cutoff, np.exp(np.arange(-0.5, 0.6, 0.1)))
-for cutoff, score in results:
+	return (exponent, cutoff, score)
+cutoffs = np.arange(-0.5, 0.6, 0.1)
+results = multiprocessing.Pool().map(test_cutoff, cutoffs)
+best_cutoff = 0.0
+best_ams = 0.0
+best_exponent = np.nan
+for exponent, cutoff, score in results:
 	if score > best_ams:
 		best_ams = score
 		best_cutoff = cutoff
+		best_exponent = exponent
 classifier = Classifier(comparator)
 classifier.cutoff = best_cutoff
 writeDone()
-print "\t\tcutoff: {0:f}".format(classifier.cutoff)
+print "\t\tcutoffs:", cutoffs
+print "\t\tcutoff: {0:f} (e^{1:f})".format(classifier.cutoff, best_exponent)
 print "\t\tpredicted ams: {0:f}".format(best_ams)
 # for cutoff, score in zip(cutoffs, all_ams):
 # 	print "\t\t\t{0:f}: {1:f}".format(cutoff, score)
@@ -125,7 +138,7 @@ testdata = loadTestData(TEST_LIMIT)
 writeDone()
 
 write("classifying test data")
-predictions, confidence = classifier.classify(testdata)
+predictions, confidence = classifier.classify(testdata, parallel=True)
 testdata["Class"] = predictions
 testdata["confidence"] = confidence
 testdata = testdata.sort("confidence")
