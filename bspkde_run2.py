@@ -101,7 +101,7 @@ def test_cutoff(cutoff):
 	predictions, confidence = classifier.classify(traindata)
 	score = ams(predictions, traindata)
 	return (cutoff, score)
-results = multiprocessing.Pool().map(test_cutoff, np.exp(np.arange(0.0, 1.1, 0.1)))
+results = multiprocessing.Pool().map(test_cutoff, np.exp(np.arange(-0.5, 0.6, 0.1)))
 for cutoff, score in results:
 	if score > best_ams:
 		best_ams = score
