@@ -8,16 +8,6 @@ import matplotlib.pyplot as pyplot
 import matplotlib as mpl
 from matplotlib.collections import PolyCollection
 
-def z_score(col):
-	"""Calculate the z-scores of a column or pandas.Series"""
-	mean = col.mean()
-	std = col.std(ddof=0)
-	return (col - mean)/std
-
-def z_scores(df):
-	"""Calculate the z-scores of a dataframe on a column-by-column basis"""
-	return df.apply(z_score, axis=0)
-
 def truth_combinations(n):
 	if n == 1:
 		yield (False,)
@@ -261,29 +251,51 @@ class KdeComparator(object):
 		self.target_cols = target_cols
 		self.name = name
 
-		just_the_data = dataframe[target_cols]
+		just_the_data = dataframe[target_cols].dropna(axis=0, how="any")
 
-		is_s = dataframe["Label"] == "s"
+		is_s = dataframe.loc[just_the_data.index, "Label"] == "s"
 		dataframe_s = just_the_data[is_s]
 		self.kde_s = self.make_kde("signal", dataframe_s, just_the_data)
 		self.num_s = dataframe_s.shape[0]
-		self.prob_s = float(self.num_s) / dataframe.shape[0]
+		self.prob_s = float(self.num_s) / just_the_data.shape[0]
 
 		dataframe_b = just_the_data[~is_s]
 		self.kde_b = self.make_kde("background", dataframe_b, just_the_data)
 		self.num_b = dataframe_b.shape[0]
-		self.prob_b = float(self.num_b) / dataframe.shape[0]
+		self.prob_b = float(self.num_b) / just_the_data.shape[0]
 
 	def make_kde(self, name, dataframe):
 		raise Exception("You should make a class that subclasses KdeComparator and overrides make_kde()")
 
 	def classify(self, dataframe):
-		df = dataframe[self.target_cols]
-		score_b = self.kde_b.score(df) * self.prob_b
-		score_s = self.kde_s.score(df) * self.prob_s
+		# df = dataframe[self.target_cols]
+		# score_b = self.kde_b.score(df) * self.prob_b
+		# score_s = self.kde_s.score(df) * self.prob_s
+
+		score_s, score_b = self.score(dataframe)
 		
 		score_ratio = score_s/score_b
 		return score_ratio
+
+	def score(self, dataframe):
+		df = dataframe[self.target_cols]
+
+		df = df.dropna(axis=0, how="any")
+
+		score_s = self.kde_s.score(df) * self.prob_s
+		score_b = self.kde_b.score(df) * self.prob_b
+
+		result_s = np.empty(dataframe.shape[0])
+		result_s = np.nan
+		result_s = pd.Series(result_s, index=dataframe.index)
+		result_s[df.index] = score_s
+
+		result_b = np.empty(dataframe.shape[0])
+		result_b = np.nan
+		result_b = pd.Series(result_b, index=dataframe.index)
+		result_b[df.index] = score_b
+
+		return (result_s.values, result_b.values)
 
 	def plot(self):
 		pyplot.clf()
