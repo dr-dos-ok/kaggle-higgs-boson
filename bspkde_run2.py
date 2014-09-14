@@ -6,7 +6,7 @@ from bkputils import *
 import bspkde, time, colflags, zipfile, scipy.stats, multiprocessing
 
 NUM_MODELS = 100
-COLS_PER_MODEL = 10
+COLS_PER_MODEL = 6
 TRAIN_LIMIT = None
 TEST_LIMIT = None
 CSV_OUTPUT_FILE = "bspkde2.csv"
