@@ -5,7 +5,7 @@ from bkputils import *
 
 import bspkde, time, colflags, zipfile, scipy.stats, multiprocessing
 
-NUM_MODELS = 1000
+NUM_MODELS = 100
 COLS_PER_MODEL = 6
 TRAIN_LIMIT = None
 TEST_LIMIT = None
